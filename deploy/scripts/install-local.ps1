@@ -35,6 +35,16 @@ function Ensure-Directory {
     }
 }
 
+function Assert-RevitNotRunning {
+    $running = Get-Process -Name "Revit" -ErrorAction SilentlyContinue
+    if ($null -eq $running) {
+        return
+    }
+
+    $ids = ($running | Select-Object -ExpandProperty Id) -join ", "
+    throw "Autodesk Revit is running (PID: $ids). Close Revit and re-run install-local.ps1."
+}
+
 function Write-Manifest {
     param(
         [string]$ManifestPath,
@@ -124,6 +134,8 @@ Write-Host "==> MDR Revit local install"
 Write-Host "Repo root: $repoRoot"
 Write-Host "Revit version: $RevitVersion"
 Write-Host "Configuration: $Configuration"
+
+Assert-RevitNotRunning
 
 if (-not $SkipBuild) {
     Write-Host "==> Building solution"
