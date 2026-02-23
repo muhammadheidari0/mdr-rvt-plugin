@@ -4,7 +4,7 @@
     <Name>MDR Revit Plugin</Name>
     <Assembly>TODO\Mdr.Revit.Addin.dll</Assembly>
     <AddInId>8D83C886-B739-4ACD-A9DB-1BC78F315B3A</AddInId>
-    <FullClassName>Mdr.Revit.Addin.App</FullClassName>
+    <FullClassName>Mdr.Revit.Addin.RevitExternalApplication</FullClassName>
     <VendorId>MDR</VendorId>
     <VendorDescription>MDR BIM Integration</VendorDescription>
   </AddIn>

@@ -5,6 +5,8 @@ namespace Mdr.Revit.Core.Contracts
 {
     public interface IRevitScheduleSyncAdapter
     {
+        IReadOnlyList<string> GetAvailableScheduleNames();
+
         IReadOnlyList<ScheduleSyncRow> ExtractRows(
             string scheduleName,
             GoogleSheetSyncProfile profile);

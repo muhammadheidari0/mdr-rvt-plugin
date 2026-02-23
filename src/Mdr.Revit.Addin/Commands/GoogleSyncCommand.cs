@@ -41,6 +41,11 @@ namespace Mdr.Revit.Addin.Commands
 
         public string Id => "mdr.googleSync";
 
+        public IReadOnlyList<string> GetAvailableSchedules()
+        {
+            return _revitScheduleSyncAdapter.GetAvailableScheduleNames();
+        }
+
         public async Task<GoogleScheduleSyncResult> ExecuteAsync(
             GoogleSyncCommandRequest request,
             CancellationToken cancellationToken)
@@ -217,6 +222,11 @@ namespace Mdr.Revit.Addin.Commands
 
     internal sealed class NullScheduleSyncAdapter : IRevitScheduleSyncAdapter
     {
+        public IReadOnlyList<string> GetAvailableScheduleNames()
+        {
+            return Array.Empty<string>();
+        }
+
         public IReadOnlyList<ScheduleSyncRow> ExtractRows(string scheduleName, GoogleSheetSyncProfile profile)
         {
             _ = scheduleName;

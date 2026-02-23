@@ -115,6 +115,11 @@ namespace Mdr.Revit.Core.Tests
 
             public int ApplyCount { get; private set; }
 
+            public IReadOnlyList<string> GetAvailableScheduleNames()
+            {
+                return new[] { "Schedule A" };
+            }
+
             public IReadOnlyList<ScheduleSyncRow> ExtractRows(string scheduleName, GoogleSheetSyncProfile profile)
             {
                 _ = scheduleName;

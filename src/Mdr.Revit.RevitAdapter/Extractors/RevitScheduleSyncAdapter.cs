@@ -32,6 +32,21 @@ namespace Mdr.Revit.RevitAdapter.Extractors
             _parameterAccessor = parameterAccessor ?? throw new ArgumentNullException(nameof(parameterAccessor));
         }
 
+        public IReadOnlyList<string> GetAvailableScheduleNames()
+        {
+            if (_uiDocument?.Document == null)
+            {
+                return Array.Empty<string>();
+            }
+
+            return ResolveSchedules(_uiDocument.Document)
+                .Select(x => x.Name ?? string.Empty)
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+
         public IReadOnlyList<ScheduleSyncRow> ExtractRows(
             string scheduleName,
             GoogleSheetSyncProfile profile)
@@ -298,11 +313,7 @@ namespace Mdr.Revit.RevitAdapter.Extractors
 
         private static ViewSchedule? ResolveSchedule(Document document, string scheduleName)
         {
-            List<ViewSchedule> schedules = new FilteredElementCollector(document)
-                .OfClass(typeof(ViewSchedule))
-                .Cast<ViewSchedule>()
-                .Where(x => !x.IsTemplate)
-                .ToList();
+            List<ViewSchedule> schedules = ResolveSchedules(document);
 
             if (schedules.Count == 0)
             {
@@ -324,6 +335,15 @@ namespace Mdr.Revit.RevitAdapter.Extractors
 
             return schedules.FirstOrDefault(x =>
                 (x.Name ?? string.Empty).IndexOf(normalizedName, StringComparison.OrdinalIgnoreCase) >= 0);
+        }
+
+        private static List<ViewSchedule> ResolveSchedules(Document document)
+        {
+            return new FilteredElementCollector(document)
+                .OfClass(typeof(ViewSchedule))
+                .Cast<ViewSchedule>()
+                .Where(x => !x.IsTemplate)
+                .ToList();
         }
 
         private static string ResolveElementId(IReadOnlyDictionary<string, string> cells)

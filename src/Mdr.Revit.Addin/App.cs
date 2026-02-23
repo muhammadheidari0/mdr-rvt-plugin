@@ -251,6 +251,11 @@ namespace Mdr.Revit.Addin
             return _googleSyncCommand.ExecuteAsync(commandRequest, cancellationToken);
         }
 
+        public IReadOnlyList<string> GetAvailableSchedulesForGoogleSync()
+        {
+            return _googleSyncCommand.GetAvailableSchedules();
+        }
+
         public SmartNumberingResult ApplySmartNumbering(SmartNumberingFromAppRequest request)
         {
             if (request == null)
