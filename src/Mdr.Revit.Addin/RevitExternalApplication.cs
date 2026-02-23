@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Reflection;
 using Autodesk.Revit.UI;
@@ -11,6 +12,8 @@ namespace Mdr.Revit.Addin
     {
         private const string RibbonTabName = "MDR";
         private const string RibbonPanelName = "BIM";
+        private static readonly object ResolverLock = new object();
+        private static bool _resolverRegistered;
 
         public Result OnStartup(UIControlledApplication application)
         {
@@ -21,6 +24,7 @@ namespace Mdr.Revit.Addin
 
             try
             {
+                EnsureAssemblyResolver();
                 EnsureRibbonTab(application, RibbonTabName);
                 RibbonPanel panel = EnsureRibbonPanel(application, RibbonTabName, RibbonPanelName);
                 AddRibbonButton(
@@ -101,6 +105,56 @@ namespace Mdr.Revit.Addin
             if (button != null)
             {
                 button.ToolTip = tooltip;
+            }
+        }
+
+        private static void EnsureAssemblyResolver()
+        {
+            lock (ResolverLock)
+            {
+                if (_resolverRegistered)
+                {
+                    return;
+                }
+
+                AppDomain.CurrentDomain.AssemblyResolve += ResolveAssemblyFromPluginDirectory;
+                _resolverRegistered = true;
+            }
+        }
+
+        private static Assembly? ResolveAssemblyFromPluginDirectory(object sender, ResolveEventArgs args)
+        {
+            _ = sender;
+            if (args == null || string.IsNullOrWhiteSpace(args.Name))
+            {
+                return null;
+            }
+
+            try
+            {
+                string? pluginDirectory = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
+                if (string.IsNullOrWhiteSpace(pluginDirectory))
+                {
+                    return null;
+                }
+
+                AssemblyName requested = new AssemblyName(args.Name);
+                if (string.IsNullOrWhiteSpace(requested.Name))
+                {
+                    return null;
+                }
+
+                string candidatePath = Path.Combine(pluginDirectory, requested.Name + ".dll");
+                if (!File.Exists(candidatePath))
+                {
+                    return null;
+                }
+
+                return Assembly.LoadFrom(candidatePath);
+            }
+            catch
+            {
+                return null;
             }
         }
     }
