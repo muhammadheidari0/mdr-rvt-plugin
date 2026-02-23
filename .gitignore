@@ -1,11 +1,21 @@
-﻿# Build output
+# Build output
 bin/
 obj/
+**/bin/
+**/obj/
+artifacts/
+TestResults/
 
 # IDE
 .vs/
+.vscode/
 *.user
 *.suo
+*.userosscache
+*.sln.docstates
+
+# Local .NET SDK / tool cache
+.dotnet/
 
 # NuGet
 packages/
@@ -14,6 +24,11 @@ packages/
 # Local config
 config/appsettings.json
 config/mdr.mapping.json
+config/*.local.json
 
-# Logs
+# Logs and temp files
 *.log
+*.tmp
+*.temp
+build_output.log
+test_full.log
