@@ -8,7 +8,8 @@ namespace Mdr.Revit.RevitAdapter.Tests
         [Theory]
         [InlineData("AL03-WS00001", "AL03-WS", 1)]
         [InlineData("AL03-WS00025", "AL03-WS", 25)]
-        [InlineData("ZZ-XXAB12", "ZZ-XX", 12)]
+        [InlineData("ZZ-XXAB12", "ZZ-XX", 0)]
+        [InlineData("ZZ-XX0012", "ZZ-XX", 12)]
         [InlineData("NO_MATCH_0001", "AL03-WS", 0)]
         public void ExtractSequence_ParsesTrailingDigits(string value, string prefix, int expected)
         {

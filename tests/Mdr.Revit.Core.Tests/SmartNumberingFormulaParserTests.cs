@@ -41,5 +41,33 @@ namespace Mdr.Revit.Core.Tests
 
             Assert.Throws<System.InvalidOperationException>(() => parser.Parse("{Block{Sequence:5}"));
         }
+
+        [Fact]
+        public void Parse_WithoutSequence_Throws()
+        {
+            SmartNumberingFormulaParser parser = new SmartNumberingFormulaParser();
+
+            Assert.Throws<System.InvalidOperationException>(() => parser.Parse("{Mark}-{Comments}"));
+        }
+
+        [Fact]
+        public void Parse_WithMultipleSequence_Throws()
+        {
+            SmartNumberingFormulaParser parser = new SmartNumberingFormulaParser();
+
+            Assert.Throws<System.InvalidOperationException>(() => parser.Parse("{Mark}-{Sequence:3}-{Sequence:4}"));
+        }
+
+        [Fact]
+        public void Parse_PlaceholderWithSpaces_IsAccepted()
+        {
+            SmartNumberingFormulaParser parser = new SmartNumberingFormulaParser();
+
+            var parsed = parser.Parse("{Type Mark}-{Sequence:5}");
+
+            Assert.Equal(3, parsed.Tokens.Count);
+            Assert.Equal("placeholder", parsed.Tokens[0].Kind);
+            Assert.Equal("Type Mark", parsed.Tokens[0].Value);
+        }
     }
 }

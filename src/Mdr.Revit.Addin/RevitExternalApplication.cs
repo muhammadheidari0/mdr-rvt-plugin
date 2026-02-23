@@ -29,6 +29,12 @@ namespace Mdr.Revit.Addin
                     "Google Sheets Sync",
                     "Open Google Sheets schedule sync dialog.",
                     typeof(GoogleSyncExternalCommand));
+                AddRibbonButton(
+                    panel,
+                    "mdr.smartNumbering",
+                    "Smart Numbering",
+                    "Generate and apply rule-based numbering with live preview.",
+                    typeof(SmartNumberingExternalCommand));
                 return Result.Succeeded;
             }
             catch

@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
-using System.Linq;
 using Autodesk.Revit.DB;
 
 namespace Mdr.Revit.RevitAdapter.Helpers
@@ -87,13 +86,21 @@ namespace Mdr.Revit.RevitAdapter.Helpers
                 return 0;
             }
 
-            string digits = new string(suffix.Where(char.IsDigit).ToArray());
-            if (string.IsNullOrWhiteSpace(digits))
+            string trimmed = suffix.Trim();
+            for (int i = 0; i < trimmed.Length; i++)
+            {
+                if (!char.IsDigit(trimmed[i]))
+                {
+                    return 0;
+                }
+            }
+
+            if (string.IsNullOrWhiteSpace(trimmed))
             {
                 return 0;
             }
 
-            return int.TryParse(digits, NumberStyles.Integer, CultureInfo.InvariantCulture, out int parsed)
+            return int.TryParse(trimmed, NumberStyles.Integer, CultureInfo.InvariantCulture, out int parsed)
                 ? parsed
                 : 0;
         }

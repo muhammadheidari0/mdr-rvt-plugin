@@ -17,6 +17,7 @@ namespace Mdr.Revit.Core.Validation
             {
                 SequenceWidth = fallbackSequenceWidth <= 0 ? 5 : fallbackSequenceWidth,
             };
+            int sequenceCount = 0;
 
             string input = formulaText.Trim();
             int index = 0;
@@ -51,10 +52,11 @@ namespace Mdr.Revit.Core.Validation
                     throw new InvalidOperationException("Smart numbering placeholder has invalid nested braces.");
                 }
 
-                if (content.StartsWith("Sequence", StringComparison.OrdinalIgnoreCase))
+                if (IsSequenceToken(content))
                 {
                     int width = ParseSequenceWidth(content, formula.SequenceWidth);
                     formula.SequenceWidth = width;
+                    sequenceCount++;
                     formula.Tokens.Add(new SmartNumberingToken
                     {
                         Kind = "sequence",
@@ -79,7 +81,27 @@ namespace Mdr.Revit.Core.Validation
                 throw new InvalidOperationException("Smart numbering formula cannot be empty.");
             }
 
+            if (sequenceCount == 0)
+            {
+                throw new InvalidOperationException("Smart numbering formula must contain exactly one {Sequence} token.");
+            }
+
+            if (sequenceCount > 1)
+            {
+                throw new InvalidOperationException("Smart numbering formula cannot contain multiple {Sequence} tokens.");
+            }
+
             return formula;
+        }
+
+        private static bool IsSequenceToken(string content)
+        {
+            if (content.Equals("Sequence", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            return content.StartsWith("Sequence:", StringComparison.OrdinalIgnoreCase);
         }
 
         private static void AddLiteralToken(SmartNumberingFormula formula, string literal)
