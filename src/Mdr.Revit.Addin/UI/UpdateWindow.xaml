@@ -1,0 +1,37 @@
+<Window x:Class="Mdr.Revit.Addin.UI.UpdateWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Plugin Updates"
+        Height="360"
+        Width="620"
+        MinHeight="320"
+        MinWidth="560"
+        WindowStartupLocation="CenterScreen">
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TextBox Grid.Row="0"
+                 IsReadOnly="True"
+                 AcceptsReturn="True"
+                 VerticalScrollBarVisibility="Auto"
+                 Text="Latest release information..." />
+
+        <StackPanel Grid.Row="1"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Right"
+                    Margin="0,12,0,0">
+            <Button Width="90"
+                    Margin="0,0,8,0"
+                    Content="Refresh" />
+            <Button Width="110"
+                    Margin="0,0,8,0"
+                    Content="Install Update" />
+            <Button Width="90"
+                    IsCancel="True"
+                    Content="Close" />
+        </StackPanel>
+    </Grid>
+</Window>

@@ -1,0 +1,51 @@
+<Window x:Class="Mdr.Revit.Addin.UI.GoogleSyncWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Google Sheets Sync"
+        Height="520"
+        Width="860"
+        MinHeight="420"
+        MinWidth="700"
+        WindowStartupLocation="CenterScreen">
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0"
+                   Margin="0,0,0,8"
+                   FontWeight="SemiBold"
+                   Text="Sync Revit Schedule <-> Google Sheets" />
+
+        <DataGrid Grid.Row="1"
+                  AutoGenerateColumns="False"
+                  CanUserAddRows="False"
+                  CanUserDeleteRows="False">
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="Sheet Column"
+                                    Width="*" />
+                <DataGridTextColumn Header="Revit Parameter"
+                                    Width="*" />
+                <DataGridCheckBoxColumn Header="Editable"
+                                        Width="120" />
+            </DataGrid.Columns>
+        </DataGrid>
+
+        <StackPanel Grid.Row="2"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Right"
+                    Margin="0,12,0,0">
+            <Button Width="90"
+                    Margin="0,0,8,0"
+                    Content="Preview" />
+            <Button Width="80"
+                    Margin="0,0,8,0"
+                    Content="Sync" />
+            <Button Width="90"
+                    IsCancel="True"
+                    Content="Close" />
+        </StackPanel>
+    </Grid>
+</Window>

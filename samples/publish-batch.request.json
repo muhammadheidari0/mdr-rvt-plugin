@@ -1,0 +1,30 @@
+﻿{
+  "run_client_id": "sample-run-001",
+  "project_code": "PRJ-001",
+  "revit_version": "2026",
+  "model_guid": "00000000-0000-0000-0000-000000000001",
+  "model_title": "Architectural Model",
+  "plugin_version": "0.1.0",
+  "files_manifest": [
+    {
+      "item_index": 0,
+      "sheet_unique_id": "sheet-uid-001",
+      "pdf_file_name": "i0_pdf_A-101.pdf",
+      "native_file_name": "i0_native_A-101.dwg",
+      "file_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }
+  ],
+  "items": [
+    {
+      "item_index": 0,
+      "sheet_unique_id": "sheet-uid-001",
+      "sheet_number": "A-101",
+      "sheet_name": "General Plan",
+      "doc_number": "PRJ-ARC-A-101",
+      "requested_revision": "A",
+      "status_code": "WIP",
+      "include_native": true,
+      "file_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }
+  ]
+}

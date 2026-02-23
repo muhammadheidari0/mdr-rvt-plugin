@@ -1,0 +1,20 @@
+﻿{
+  "schemaVersion": "v1",
+  "sheetMetadata": {
+    "mdrCode": "MDR_CODE",
+    "phase": "PHASE_CODE",
+    "discipline": "DISCIPLINE_CODE",
+    "package": "PACKAGE_CODE",
+    "block": "BLOCK_CODE",
+    "level": "LEVEL_CODE",
+    "subject": "SUBJECT"
+  },
+  "scheduleProfiles": {
+    "MTO": {
+      "viewName": "MDR_MTO_EXPORT"
+    },
+    "EQUIPMENT": {
+      "viewName": "MDR_EQUIPMENT_EXPORT"
+    }
+  }
+}

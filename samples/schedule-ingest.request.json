@@ -1,0 +1,19 @@
+﻿{
+  "project_code": "PRJ-001",
+  "profile_code": "MTO",
+  "model_guid": "00000000-0000-0000-0000-000000000001",
+  "view_name": "MTO_Main",
+  "schema_version": "v1",
+  "extracted_at_utc": "2026-02-22T00:00:00Z",
+  "rows": [
+    {
+      "row_no": 1,
+      "element_key": "EL-0001",
+      "values": {
+        "material": "Concrete",
+        "quantity": "12.5",
+        "unit": "m3"
+      }
+    }
+  ]
+}

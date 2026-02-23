@@ -1,0 +1,19 @@
+﻿# Build output
+bin/
+obj/
+
+# IDE
+.vs/
+*.user
+*.suo
+
+# NuGet
+packages/
+*.nupkg
+
+# Local config
+config/appsettings.json
+config/mdr.mapping.json
+
+# Logs
+*.log

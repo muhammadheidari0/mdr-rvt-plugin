@@ -1,0 +1,29 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net48</TargetFramework>
+    <AssemblyName>Mdr.Revit.Addin</AssemblyName>
+    <RootNamespace>Mdr.Revit.Addin</RootNamespace>
+    <OutputType>Library</OutputType>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Mdr.Revit.Core\Mdr.Revit.Core.csproj" />
+    <ProjectReference Include="..\Mdr.Revit.Client\Mdr.Revit.Client.csproj" />
+    <ProjectReference Include="..\Mdr.Revit.RevitAdapter\Mdr.Revit.RevitAdapter.csproj" />
+    <ProjectReference Include="..\Mdr.Revit.Infra\Mdr.Revit.Infra.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="RevitAPI">
+      <HintPath>$(RevitApiDir)\RevitAPI.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="RevitAPIUI">
+      <HintPath>$(RevitApiDir)\RevitAPIUI.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+</Project>
