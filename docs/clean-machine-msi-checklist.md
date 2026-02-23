@@ -2,6 +2,13 @@
 
 Use this checklist on a clean Windows machine to validate first-time installation.
 
+## Build Under Test (v0.3.0)
+
+- ZIP: `mdr-rvt-plugin-0.3.0-rvt2026.zip`
+- MSI: `mdr-rvt-plugin-0.3.0-rvt2026.msi`
+- ZIP SHA-256: `5598A39A26CB05AE3FA7FAD114E2428788651F6E143555B5B5E9ED56578D1F76`
+- MSI SHA-256: `8A753893BE1239473AE8A84E52BC1CE97901C2D2E9F4E10200637BD0032422AA`
+
 ## 1) Preconditions
 
 - Windows user has local install permission.
@@ -15,7 +22,7 @@ Use this checklist on a clean Windows machine to validate first-time installatio
 - Run MSI (double-click) or silent install:
 
 ```powershell
-msiexec /i "mdr-rvt-plugin-<version>-rvt2026.msi" /qn /norestart
+msiexec /i "mdr-rvt-plugin-0.3.0-rvt2026.msi" /qn /norestart
 ```
 
 - Verify installer exits successfully (`ExitCode 0`).
@@ -55,7 +62,7 @@ msiexec /i "mdr-rvt-plugin-<version>-rvt2026.msi" /qn /norestart
 - Uninstall from Apps & Features or:
 
 ```powershell
-msiexec /x "mdr-rvt-plugin-<version>-rvt2026.msi" /qn /norestart
+msiexec /x "mdr-rvt-plugin-0.3.0-rvt2026.msi" /qn /norestart
 ```
 
 - Verify removed:

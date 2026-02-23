@@ -4,7 +4,7 @@
   "revit_version": "2026",
   "model_guid": "00000000-0000-0000-0000-000000000001",
   "model_title": "Architectural Model",
-  "plugin_version": "0.1.0",
+  "plugin_version": "0.3.0",
   "files_manifest": [
     {
       "item_index": 0,
