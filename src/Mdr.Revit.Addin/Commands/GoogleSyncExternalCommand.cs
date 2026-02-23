@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using Autodesk.Revit.Attributes;
 using Autodesk.Revit.DB;
 using Autodesk.Revit.UI;
@@ -35,7 +36,29 @@ namespace Mdr.Revit.Addin.Commands
             catch (Exception ex)
             {
                 message = ex.Message;
+                WriteCommandError("google_sync", ex);
                 return Result.Failed;
+            }
+        }
+
+        private static void WriteCommandError(string commandName, Exception ex)
+        {
+            try
+            {
+                string logDirectory = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                    "MDR",
+                    "RevitPlugin",
+                    "logs");
+                Directory.CreateDirectory(logDirectory);
+
+                string logPath = Path.Combine(logDirectory, "command-errors.log");
+                string line = DateTime.UtcNow.ToString("o") + " " + commandName + " " + ex;
+                File.AppendAllText(logPath, line + Environment.NewLine);
+            }
+            catch
+            {
+                // Ignore logging failures in command exception path.
             }
         }
     }
