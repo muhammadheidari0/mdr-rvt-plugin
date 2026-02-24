@@ -70,17 +70,40 @@ namespace Mdr.Revit.RevitAdapter.Extractors
             }
 
             TableSectionData headerSection = tableData.GetSectionData(SectionType.Header);
-            int headerRow = headerSection != null && headerSection.NumberOfRows > 0
-                ? headerSection.LastRowNumber
+            bool hasHeaderSection = headerSection != null &&
+                headerSection.NumberOfRows > 0 &&
+                headerSection.NumberOfColumns > 0;
+            int headerRow = hasHeaderSection
+                ? headerSection!.LastRowNumber
                 : body.FirstRowNumber;
+            int headerFirstCol = hasHeaderSection
+                ? headerSection!.FirstColumnNumber
+                : body.FirstColumnNumber;
+            int headerLastCol = hasHeaderSection
+                ? headerSection!.LastColumnNumber
+                : body.LastColumnNumber;
 
-            List<string> headers = new List<string>();
-            for (int col = body.FirstColumnNumber; col <= body.LastColumnNumber; col++)
+            int bodyColumnCount = body.LastColumnNumber - body.FirstColumnNumber + 1;
+            List<string> headers = new List<string>(bodyColumnCount);
+            for (int offset = 0; offset < bodyColumnCount; offset++)
             {
-                string header = schedule.GetCellText(SectionType.Header, headerRow, col);
+                int bodyCol = body.FirstColumnNumber + offset;
+                int headerCol = headerFirstCol + offset;
+
+                string header = string.Empty;
+                if (hasHeaderSection && headerCol >= headerFirstCol && headerCol <= headerLastCol)
+                {
+                    header = SafeGetCellText(schedule, SectionType.Header, headerRow, headerCol);
+                }
+
                 if (string.IsNullOrWhiteSpace(header))
                 {
-                    header = "COL_" + (col - body.FirstColumnNumber + 1);
+                    header = SafeGetCellText(schedule, SectionType.Body, body.FirstRowNumber, bodyCol);
+                }
+
+                if (string.IsNullOrWhiteSpace(header))
+                {
+                    header = "COL_" + (offset + 1);
                 }
 
                 headers.Add(header.Trim());
@@ -93,7 +116,7 @@ namespace Mdr.Revit.RevitAdapter.Extractors
                 for (int col = body.FirstColumnNumber; col <= body.LastColumnNumber; col++)
                 {
                     string key = headers[col - body.FirstColumnNumber];
-                    string value = schedule.GetCellText(SectionType.Body, row, col) ?? string.Empty;
+                    string value = SafeGetCellText(schedule, SectionType.Body, row, col);
                     data.Cells[key] = value.Trim();
                 }
 
@@ -335,6 +358,26 @@ namespace Mdr.Revit.RevitAdapter.Extractors
 
             return schedules.FirstOrDefault(x =>
                 (x.Name ?? string.Empty).IndexOf(normalizedName, StringComparison.OrdinalIgnoreCase) >= 0);
+        }
+
+        private static string SafeGetCellText(
+            ViewSchedule schedule,
+            SectionType sectionType,
+            int row,
+            int column)
+        {
+            try
+            {
+                return schedule.GetCellText(sectionType, row, column) ?? string.Empty;
+            }
+            catch (Autodesk.Revit.Exceptions.ArgumentException)
+            {
+                return string.Empty;
+            }
+            catch (System.ArgumentException)
+            {
+                return string.Empty;
+            }
         }
 
         private static List<ViewSchedule> ResolveSchedules(Document document)
