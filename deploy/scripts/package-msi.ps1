@@ -2,6 +2,7 @@ param(
     [string]$RevitVersion = "2026",
     [ValidateSet("Debug", "Release")]
     [string]$Configuration = "Release",
+    [string]$TargetFramework = "net8.0-windows",
     [string]$Version = "",
     [string]$OutputDirectory = "",
     [switch]$SkipBuild,
@@ -43,6 +44,34 @@ function Ensure-Directory {
     if (-not (Test-Path $PathValue)) {
         New-Item -ItemType Directory -Path $PathValue | Out-Null
     }
+}
+
+function Resolve-AddinOutputDirectory {
+    param(
+        [string]$RepoRoot,
+        [string]$ConfigurationValue,
+        [string]$PreferredTargetFramework
+    )
+
+    $candidates = New-Object System.Collections.Generic.List[string]
+    if (-not [string]::IsNullOrWhiteSpace($PreferredTargetFramework)) {
+        [void]$candidates.Add($PreferredTargetFramework)
+    }
+
+    foreach ($fallback in @("net8.0-windows", "net8.0", "net48")) {
+        if (-not $candidates.Contains($fallback)) {
+            [void]$candidates.Add($fallback)
+        }
+    }
+
+    foreach ($framework in $candidates) {
+        $path = Join-Path $RepoRoot ("src\Mdr.Revit.Addin\bin\" + $ConfigurationValue + "\" + $framework)
+        if (Test-Path $path) {
+            return $path
+        }
+    }
+
+    return Join-Path $RepoRoot ("src\Mdr.Revit.Addin\bin\" + $ConfigurationValue + "\" + $PreferredTargetFramework)
 }
 
 function Resolve-PluginVersion {
@@ -267,7 +296,10 @@ function Write-WixSource {
 $repoRoot = Resolve-RepoRoot
 $dotnet = Resolve-Dotnet -RepoRoot $repoRoot
 $solutionPath = Join-Path $repoRoot "Mdr.RevitPlugin.sln"
-$addinOutput = Join-Path $repoRoot "src\Mdr.Revit.Addin\bin\$Configuration\net48"
+$addinOutput = Resolve-AddinOutputDirectory `
+    -RepoRoot $repoRoot `
+    -ConfigurationValue $Configuration `
+    -PreferredTargetFramework $TargetFramework
 $resolvedVersion = Resolve-PluginVersion -RepoRoot $repoRoot -RequestedVersion $Version
 $msiVersion = Convert-ToMsiVersion -VersionText $resolvedVersion
 
@@ -295,6 +327,7 @@ Ensure-Directory -PathValue $msiWorkDir
 Write-Host "==> Packaging MDR Revit Plugin"
 Write-Host "Repo root:      $repoRoot"
 Write-Host "Configuration:  $Configuration"
+Write-Host "Target TFM:    $TargetFramework"
 Write-Host "Plugin version: $resolvedVersion"
 Write-Host "MSI version:    $msiVersion"
 Write-Host "Revit version:  $RevitVersion"

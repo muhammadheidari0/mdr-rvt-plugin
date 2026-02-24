@@ -1,6 +1,6 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>net48</TargetFramework>
+    <TargetFramework>net8.0-windows</TargetFramework>
     <AssemblyName>Mdr.Revit.Infra</AssemblyName>
     <RootNamespace>Mdr.Revit.Infra</RootNamespace>
     <OutputType>Library</OutputType>
@@ -13,7 +13,4 @@
     <ProjectReference Include="..\Mdr.Revit.Core\Mdr.Revit.Core.csproj" />
   </ItemGroup>
 
-  <ItemGroup>
-    <PackageReference Include="System.Text.Json" />
-  </ItemGroup>
 </Project>

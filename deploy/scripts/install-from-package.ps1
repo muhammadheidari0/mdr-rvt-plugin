@@ -128,20 +128,38 @@ function Get-BinaryCandidateScore {
 
     $path = $File.FullName.ToLowerInvariant()
     $score = 1000
-    if ($path -like "*\src\mdr.revit.addin\bin\release\net48\mdr.revit.addin.dll") {
+    if ($path -like "*\src\mdr.revit.addin\bin\release\net8.0-windows\mdr.revit.addin.dll") {
         $score = 0
-    } elseif ($path -like "*\bin\release\net48\mdr.revit.addin.dll") {
+    } elseif ($path -like "*\bin\release\net8.0-windows\mdr.revit.addin.dll") {
         $score = 10
-    } elseif ($path -like "*\bin\release\*") {
+    } elseif ($path -like "*\src\mdr.revit.addin\bin\release\net8.0\mdr.revit.addin.dll") {
+        $score = 15
+    } elseif ($path -like "*\bin\release\net8.0\mdr.revit.addin.dll") {
         $score = 20
-    } elseif ($path -like "*\src\mdr.revit.addin\bin\debug\net48\mdr.revit.addin.dll") {
+    } elseif ($path -like "*\bin\release\net48\mdr.revit.addin.dll") {
         $score = 30
-    } elseif ($path -like "*\bin\debug\net48\mdr.revit.addin.dll") {
+    } elseif ($path -like "*\bin\release\*") {
         $score = 40
-    } elseif ($path -like "*\bin\debug\*") {
+    } elseif ($path -like "*\src\mdr.revit.addin\bin\debug\net8.0-windows\mdr.revit.addin.dll") {
         $score = 50
-    } elseif ($path -like "*\net48\*") {
+    } elseif ($path -like "*\bin\debug\net8.0-windows\mdr.revit.addin.dll") {
         $score = 60
+    } elseif ($path -like "*\src\mdr.revit.addin\bin\debug\net8.0\mdr.revit.addin.dll") {
+        $score = 70
+    } elseif ($path -like "*\bin\debug\net8.0\mdr.revit.addin.dll") {
+        $score = 80
+    } elseif ($path -like "*\src\mdr.revit.addin\bin\debug\net48\mdr.revit.addin.dll") {
+        $score = 90
+    } elseif ($path -like "*\bin\debug\net48\mdr.revit.addin.dll") {
+        $score = 100
+    } elseif ($path -like "*\bin\debug\*") {
+        $score = 110
+    } elseif ($path -like "*\net8.0-windows\*") {
+        $score = 120
+    } elseif ($path -like "*\net8.0\*") {
+        $score = 130
+    } elseif ($path -like "*\net48\*") {
+        $score = 140
     }
 
     return $score

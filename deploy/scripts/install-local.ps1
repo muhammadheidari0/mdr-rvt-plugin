@@ -2,6 +2,7 @@ param(
     [string]$RevitVersion = "2026",
     [ValidateSet("Debug", "Release")]
     [string]$Configuration = "Debug",
+    [string]$TargetFramework = "net8.0-windows",
     [switch]$SkipBuild,
     [switch]$ForceConfig,
     [string]$GoogleClientId = $env:MDR_GOOGLE_CLIENT_ID,
@@ -43,6 +44,34 @@ function Assert-RevitNotRunning {
 
     $ids = ($running | Select-Object -ExpandProperty Id) -join ", "
     throw "Autodesk Revit is running (PID: $ids). Close Revit and re-run install-local.ps1."
+}
+
+function Resolve-AddinOutputDirectory {
+    param(
+        [string]$RepoRoot,
+        [string]$ConfigurationValue,
+        [string]$PreferredTargetFramework
+    )
+
+    $candidates = New-Object System.Collections.Generic.List[string]
+    if (-not [string]::IsNullOrWhiteSpace($PreferredTargetFramework)) {
+        [void]$candidates.Add($PreferredTargetFramework)
+    }
+
+    foreach ($fallback in @("net8.0-windows", "net8.0", "net48")) {
+        if (-not $candidates.Contains($fallback)) {
+            [void]$candidates.Add($fallback)
+        }
+    }
+
+    foreach ($framework in $candidates) {
+        $path = Join-Path $RepoRoot ("src\Mdr.Revit.Addin\bin\" + $ConfigurationValue + "\" + $framework)
+        if (Test-Path $path) {
+            return $path
+        }
+    }
+
+    return Join-Path $RepoRoot ("src\Mdr.Revit.Addin\bin\" + $ConfigurationValue + "\" + $PreferredTargetFramework)
 }
 
 function Write-Manifest {
@@ -121,7 +150,10 @@ function Apply-ConfigSecrets {
 $repoRoot = Resolve-RepoRoot
 $dotnet = Resolve-Dotnet -RepoRoot $repoRoot
 $solutionPath = Join-Path $repoRoot "Mdr.RevitPlugin.sln"
-$addinOutput = Join-Path $repoRoot "src\Mdr.Revit.Addin\bin\$Configuration\net48"
+$addinOutput = Resolve-AddinOutputDirectory `
+    -RepoRoot $repoRoot `
+    -ConfigurationValue $Configuration `
+    -PreferredTargetFramework $TargetFramework
 
 $pluginInstallDir = Join-Path $env:LocalAppData "MDR\RevitPlugin\addin\$RevitVersion"
 $runtimeConfigDir = Join-Path $env:LocalAppData "MDR\RevitPlugin"
@@ -134,6 +166,7 @@ Write-Host "==> MDR Revit local install"
 Write-Host "Repo root: $repoRoot"
 Write-Host "Revit version: $RevitVersion"
 Write-Host "Configuration: $Configuration"
+Write-Host "Target framework: $TargetFramework"
 
 Assert-RevitNotRunning
 

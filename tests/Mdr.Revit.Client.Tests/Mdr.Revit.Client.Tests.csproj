@@ -1,6 +1,6 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>net48</TargetFramework>
+    <TargetFramework>net8.0-windows</TargetFramework>
     <AssemblyName>Mdr.Revit.Client.Tests</AssemblyName>
     <RootNamespace>Mdr.Revit.Client.Tests</RootNamespace>
     <OutputType>Library</OutputType>
@@ -24,7 +24,4 @@
     </PackageReference>
   </ItemGroup>
 
-  <ItemGroup>
-    <Reference Include="System.Net.Http" />
-  </ItemGroup>
 </Project>

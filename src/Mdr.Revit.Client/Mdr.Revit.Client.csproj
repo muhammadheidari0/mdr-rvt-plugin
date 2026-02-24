@@ -1,6 +1,6 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>net48</TargetFramework>
+    <TargetFramework>net8.0-windows</TargetFramework>
     <AssemblyName>Mdr.Revit.Client</AssemblyName>
     <RootNamespace>Mdr.Revit.Client</RootNamespace>
     <OutputType>Library</OutputType>
@@ -14,11 +14,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="System.Text.Json" />
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" />
   </ItemGroup>
 
-  <ItemGroup>
-    <Reference Include="System.Net.Http" />
-    <Reference Include="System.Security" />
-  </ItemGroup>
 </Project>

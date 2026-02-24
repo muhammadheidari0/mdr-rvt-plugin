@@ -1,6 +1,6 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>net48</TargetFramework>
+    <TargetFramework>net8.0-windows</TargetFramework>
     <AssemblyName>Mdr.Revit.Core.Tests</AssemblyName>
     <RootNamespace>Mdr.Revit.Core.Tests</RootNamespace>
     <OutputType>Library</OutputType>
