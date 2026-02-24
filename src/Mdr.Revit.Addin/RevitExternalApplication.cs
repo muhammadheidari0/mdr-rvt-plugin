@@ -5,6 +5,8 @@ using System.Linq;
 using System.Reflection;
 using Autodesk.Revit.UI;
 using Mdr.Revit.Addin.Commands;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
 
 namespace Mdr.Revit.Addin
 {
@@ -49,19 +51,25 @@ namespace Mdr.Revit.Addin
                     "mdr.publishSheets",
                     "Publish to MDR",
                     "Select Revit sheets and publish PDF/native files to MDR EDMS.",
-                    typeof(PublishSheetsExternalCommand));
+                    typeof(PublishSheetsExternalCommand),
+                    "Resources\\Icons\\publish-16.png",
+                    "Resources\\Icons\\publish-32.png");
                 AddRibbonButton(
                     panel,
                     "mdr.googleSync",
                     "Google Sheets Sync",
                     "Open Google Sheets schedule sync dialog.",
-                    typeof(GoogleSyncExternalCommand));
+                    typeof(GoogleSyncExternalCommand),
+                    "Resources\\Icons\\google-16.png",
+                    "Resources\\Icons\\google-32.png");
                 AddRibbonButton(
                     panel,
                     "mdr.smartNumbering",
                     "Smart Numbering",
                     "Generate and apply rule-based numbering with live preview.",
-                    typeof(SmartNumberingExternalCommand));
+                    typeof(SmartNumberingExternalCommand),
+                    "Resources\\Icons\\smart-16.png",
+                    "Resources\\Icons\\smart-32.png");
                 return Result.Succeeded;
             }
             catch
@@ -109,7 +117,9 @@ namespace Mdr.Revit.Addin
             string buttonId,
             string buttonText,
             string tooltip,
-            Type commandType)
+            Type commandType,
+            string smallIconRelativePath,
+            string largeIconRelativePath)
         {
             bool exists = panel.GetItems()
                 .Any(x => string.Equals(x.Name, buttonId, StringComparison.OrdinalIgnoreCase));
@@ -128,6 +138,17 @@ namespace Mdr.Revit.Addin
             if (button != null)
             {
                 button.ToolTip = tooltip;
+                ImageSource? smallIcon = TryLoadIcon(smallIconRelativePath);
+                if (smallIcon != null)
+                {
+                    button.Image = smallIcon;
+                }
+
+                ImageSource? largeIcon = TryLoadIcon(largeIconRelativePath);
+                if (largeIcon != null)
+                {
+                    button.LargeImage = largeIcon;
+                }
             }
         }
 
@@ -242,6 +263,43 @@ namespace Mdr.Revit.Addin
             catch
             {
                 // Ignore bootstrap log failures.
+            }
+        }
+
+        private static ImageSource? TryLoadIcon(string relativePath)
+        {
+            if (string.IsNullOrWhiteSpace(relativePath))
+            {
+                return null;
+            }
+
+            try
+            {
+                string? pluginDirectory = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
+                if (string.IsNullOrWhiteSpace(pluginDirectory))
+                {
+                    return null;
+                }
+
+                string normalized = relativePath.Replace('/', '\\');
+                string absolutePath = Path.Combine(pluginDirectory, normalized);
+                if (!File.Exists(absolutePath))
+                {
+                    return null;
+                }
+
+                BitmapImage bitmap = new BitmapImage();
+                bitmap.BeginInit();
+                bitmap.UriSource = new Uri(absolutePath, UriKind.Absolute);
+                bitmap.CacheOption = BitmapCacheOption.OnLoad;
+                bitmap.EndInit();
+                bitmap.Freeze();
+                return bitmap;
+            }
+            catch (Exception ex)
+            {
+                WriteBootstrapLog("Icon load failed for " + relativePath, ex);
+                return null;
             }
         }
     }
