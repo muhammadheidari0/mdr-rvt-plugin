@@ -109,6 +109,8 @@ namespace Mdr.Revit.Addin
                 BaseUrl = config.ApiBaseUrl,
                 Username = username,
                 Password = password,
+                RequestTimeoutSeconds = config.RequestTimeoutSeconds,
+                AllowInsecureTls = config.AllowInsecureTls,
             };
             return _loginCommand.ExecuteAsync(request, cancellationToken);
         }
@@ -139,6 +141,9 @@ namespace Mdr.Revit.Addin
                 IncludeNative = request.IncludeNative ?? config.IncludeNativeByDefault,
                 RetryFailedItems = request.RetryFailedItems ?? config.RetryFailedItems,
                 OutputDirectory = ResolveOutputDirectory(request.OutputDirectory, config.PublishOutputDirectory),
+                RequestTimeoutSeconds = config.RequestTimeoutSeconds,
+                AllowInsecureTls = config.AllowInsecureTls,
+                NativeFormat = ResolvePublishNativeFormat(config),
             };
 
             foreach (PublishSheetItem item in request.Items)
@@ -174,6 +179,8 @@ namespace Mdr.Revit.Addin
                 ModelGuid = request.ModelGuid ?? string.Empty,
                 ViewName = request.ViewName ?? string.Empty,
                 SchemaVersion = string.IsNullOrWhiteSpace(request.SchemaVersion) ? "v1" : request.SchemaVersion,
+                RequestTimeoutSeconds = config.RequestTimeoutSeconds,
+                AllowInsecureTls = config.AllowInsecureTls,
             };
 
             return _pushSchedulesCommand.ExecuteAsync(commandRequest, cancellationToken);
@@ -200,6 +207,8 @@ namespace Mdr.Revit.Addin
                 UpdatedAfterUtc = request.UpdatedAfterUtc,
                 Limit = request.Limit <= 0 ? 500 : request.Limit,
                 PluginVersion = string.IsNullOrWhiteSpace(config.PluginVersion) ? "0.3.0" : config.PluginVersion,
+                RequestTimeoutSeconds = config.RequestTimeoutSeconds,
+                AllowInsecureTls = config.AllowInsecureTls,
             };
 
             return _syncSiteLogsCommand.ExecuteAsync(commandRequest, cancellationToken);
@@ -348,6 +357,16 @@ namespace Mdr.Revit.Addin
             }
 
             return Environment.ExpandEnvironmentVariables(path.Replace("/", "\\"));
+        }
+
+        private static string ResolvePublishNativeFormat(PluginConfig config)
+        {
+            if (config?.Publish != null && !string.IsNullOrWhiteSpace(config.Publish.NativeFormat))
+            {
+                return config.Publish.NativeFormat;
+            }
+
+            return "dwg";
         }
 
         private static string ResolveGoogleTokenStorePath(string configuredPath)

@@ -85,6 +85,16 @@ namespace Mdr.Revit.Infra.Config
                 config.DefaultPublishStatusCode = "IFA";
             }
 
+            if (config.Publish == null)
+            {
+                config.Publish = new PublishPluginConfig();
+            }
+
+            if (string.IsNullOrWhiteSpace(config.Publish.NativeFormat))
+            {
+                config.Publish.NativeFormat = "dwg";
+            }
+
             if (config.Google == null)
             {
                 config.Google = new GooglePluginConfig();

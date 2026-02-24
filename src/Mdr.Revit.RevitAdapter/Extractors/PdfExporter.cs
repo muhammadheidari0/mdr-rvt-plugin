@@ -1,28 +1,30 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Security.Cryptography;
 using System.Text;
+using Mdr.Revit.Core.Models;
 
 namespace Mdr.Revit.RevitAdapter.Extractors
 {
     public sealed class PdfExporter
     {
-        private readonly Func<IReadOnlyList<string>, string, IReadOnlyList<string>>? _revitExporter;
+        private readonly Func<IReadOnlyList<PublishSheetItem>, string, IReadOnlyList<ExportArtifact>>? _revitExporter;
 
         public PdfExporter()
         {
         }
 
-        public PdfExporter(Func<IReadOnlyList<string>, string, IReadOnlyList<string>> revitExporter)
+        public PdfExporter(Func<IReadOnlyList<PublishSheetItem>, string, IReadOnlyList<ExportArtifact>> revitExporter)
         {
             _revitExporter = revitExporter ?? throw new ArgumentNullException(nameof(revitExporter));
         }
 
-        public IReadOnlyList<string> ExportSheetsToPdf(IReadOnlyList<string> sheetIds, string outputDirectory)
+        public IReadOnlyList<ExportArtifact> ExportSheetsToPdf(IReadOnlyList<PublishSheetItem> items, string outputDirectory)
         {
-            if (sheetIds == null)
+            if (items == null)
             {
-                throw new ArgumentNullException(nameof(sheetIds));
+                throw new ArgumentNullException(nameof(items));
             }
 
             if (string.IsNullOrWhiteSpace(outputDirectory))
@@ -34,23 +36,46 @@ namespace Mdr.Revit.RevitAdapter.Extractors
 
             if (_revitExporter == null)
             {
-                return ExportPlaceholder(sheetIds, outputDirectory);
+                return ExportPlaceholder(items, outputDirectory);
             }
 
-            return _revitExporter(sheetIds, outputDirectory);
+            return _revitExporter(items, outputDirectory);
         }
 
-        private static IReadOnlyList<string> ExportPlaceholder(IReadOnlyList<string> sheetIds, string outputDirectory)
+        private static IReadOnlyList<ExportArtifact> ExportPlaceholder(IReadOnlyList<PublishSheetItem> items, string outputDirectory)
         {
-            List<string> results = new List<string>(sheetIds.Count);
-            for (int i = 0; i < sheetIds.Count; i++)
+            List<ExportArtifact> results = new List<ExportArtifact>(items.Count);
+            for (int i = 0; i < items.Count; i++)
             {
-                string sheetId = string.IsNullOrWhiteSpace(sheetIds[i]) ? ("sheet_" + i) : sheetIds[i].Trim();
-                string fileName = "i" + i + "_pdf_" + SanitizeToken(sheetId) + ".pdf";
+                PublishSheetItem item = items[i] ?? new PublishSheetItem { ItemIndex = i };
+                int itemIndex = item.ItemIndex < 0 ? i : item.ItemIndex;
+                string sheetId = string.IsNullOrWhiteSpace(item.SheetUniqueId) ? ("sheet_" + itemIndex) : item.SheetUniqueId.Trim();
+                string fileName = "i" + itemIndex + "_pdf_" + SanitizeToken(sheetId) + ".pdf";
                 string filePath = Path.Combine(outputDirectory, fileName);
 
-                WriteMinimalPdf(filePath, sheetId);
-                results.Add(filePath);
+                try
+                {
+                    WriteMinimalPdf(filePath, sheetId);
+                    results.Add(new ExportArtifact
+                    {
+                        ItemIndex = itemIndex,
+                        SheetUniqueId = sheetId,
+                        Kind = ExportArtifactKinds.Pdf,
+                        FilePath = filePath,
+                        FileSha256 = ComputeSha256(filePath),
+                    });
+                }
+                catch (Exception ex)
+                {
+                    results.Add(new ExportArtifact
+                    {
+                        ItemIndex = itemIndex,
+                        SheetUniqueId = sheetId,
+                        Kind = ExportArtifactKinds.Pdf,
+                        ErrorCode = "export_pdf_failed",
+                        ErrorMessage = ex.Message,
+                    });
+                }
             }
 
             return results;
@@ -104,6 +129,22 @@ namespace Mdr.Revit.RevitAdapter.Extractors
 
             string result = new string(output, 0, length);
             return string.IsNullOrWhiteSpace(result) ? "sheet" : result;
+        }
+
+        private static string ComputeSha256(string filePath)
+        {
+            using (SHA256 sha = SHA256.Create())
+            using (FileStream stream = File.OpenRead(filePath))
+            {
+                byte[] hash = sha.ComputeHash(stream);
+                StringBuilder builder = new StringBuilder(hash.Length * 2);
+                for (int i = 0; i < hash.Length; i++)
+                {
+                    builder.Append(hash[i].ToString("x2"));
+                }
+
+                return builder.ToString();
+            }
         }
     }
 }

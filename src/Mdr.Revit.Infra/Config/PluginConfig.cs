@@ -37,6 +37,8 @@ namespace Mdr.Revit.Infra.Config
 
         public bool RetryFailedItems { get; set; } = true;
 
+        public PublishPluginConfig Publish { get; set; } = new PublishPluginConfig();
+
         public GooglePluginConfig Google { get; set; } = new GooglePluginConfig();
 
         public UpdatesPluginConfig Updates { get; set; } = new UpdatesPluginConfig();
@@ -44,6 +46,11 @@ namespace Mdr.Revit.Infra.Config
         public SmartNumberingPluginConfig SmartNumbering { get; set; } = new SmartNumberingPluginConfig();
 
         public static PluginConfig Default => new PluginConfig();
+    }
+
+    public sealed class PublishPluginConfig
+    {
+        public string NativeFormat { get; set; } = "dwg";
     }
 
     public sealed class GooglePluginConfig

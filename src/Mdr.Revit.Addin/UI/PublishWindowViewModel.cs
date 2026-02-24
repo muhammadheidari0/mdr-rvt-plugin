@@ -22,6 +22,8 @@ namespace Mdr.Revit.Addin.UI
 
         public string OutputDirectory { get; set; } = string.Empty;
 
+        public string ApiBaseUrl { get; set; } = string.Empty;
+
         public int SelectedCount
         {
             get
@@ -68,6 +70,7 @@ namespace Mdr.Revit.Addin.UI
                 PublishSheetSelectionItem row = _sheetRows[i];
                 if (!row.IsSelected)
                 {
+                    row.LastRunItemIndex = null;
                     continue;
                 }
 
@@ -75,9 +78,59 @@ namespace Mdr.Revit.Addin.UI
                 item.ItemIndex = selected.Count;
                 item.IncludeNative = IncludeNative || item.IncludeNative;
                 selected.Add(item);
+
+                row.LastRunItemIndex = item.ItemIndex;
+                row.LastState = "pending";
+                row.LastErrorCode = string.Empty;
+                row.LastMessage = string.Empty;
             }
 
             return selected;
+        }
+
+        public void ApplyPublishResult(PublishBatchResponse response)
+        {
+            if (response == null)
+            {
+                return;
+            }
+
+            Dictionary<int, PublishItemResult> byIndex = new Dictionary<int, PublishItemResult>();
+            if (response.Items != null)
+            {
+                for (int i = 0; i < response.Items.Count; i++)
+                {
+                    PublishItemResult result = response.Items[i];
+                    if (result == null)
+                    {
+                        continue;
+                    }
+
+                    byIndex[result.ItemIndex] = result;
+                }
+            }
+
+            for (int i = 0; i < _sheetRows.Count; i++)
+            {
+                PublishSheetSelectionItem row = _sheetRows[i];
+                if (!row.LastRunItemIndex.HasValue)
+                {
+                    continue;
+                }
+
+                int itemIndex = row.LastRunItemIndex.Value;
+                if (!byIndex.TryGetValue(itemIndex, out PublishItemResult? result))
+                {
+                    row.LastState = "failed";
+                    row.LastErrorCode = "result_missing";
+                    row.LastMessage = "No item-level result was returned by API.";
+                    continue;
+                }
+
+                row.LastState = result.State ?? string.Empty;
+                row.LastErrorCode = result.ErrorCode ?? string.Empty;
+                row.LastMessage = result.ErrorMessage ?? string.Empty;
+            }
         }
     }
 
@@ -102,6 +155,14 @@ namespace Mdr.Revit.Addin.UI
         public string FileSha256 { get; set; } = string.Empty;
 
         public DocumentMetadata Metadata { get; set; } = new DocumentMetadata();
+
+        public int? LastRunItemIndex { get; set; }
+
+        public string LastState { get; set; } = string.Empty;
+
+        public string LastErrorCode { get; set; } = string.Empty;
+
+        public string LastMessage { get; set; } = string.Empty;
 
         public static PublishSheetSelectionItem FromPublishItem(PublishSheetItem item)
         {

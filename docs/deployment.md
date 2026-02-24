@@ -14,6 +14,7 @@
    - `projectCode`
    - `pluginVersion`
    - `publishOutputDirectory`
+   - `publish.nativeFormat` (keep `dwg` in current release)
 3. Keep `retryFailedItems=true` for EDMS MVP.
 
 ## Addin manifest

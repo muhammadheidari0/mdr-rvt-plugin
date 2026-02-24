@@ -55,14 +55,22 @@ namespace Mdr.Revit.RevitAdapter.Tests
             try
             {
                 PdfExporter exporter = new PdfExporter();
-                var files = exporter.ExportSheetsToPdf(new[] { "A-101", "A-102" }, outputDirectory);
+                var files = exporter.ExportSheetsToPdf(
+                    new[]
+                    {
+                        new PublishSheetItem { ItemIndex = 0, SheetUniqueId = "A-101" },
+                        new PublishSheetItem { ItemIndex = 1, SheetUniqueId = "A-102" },
+                    },
+                    outputDirectory);
 
                 Assert.Equal(2, files.Count);
-                Assert.All(files, file => Assert.True(File.Exists(file)));
+                Assert.All(files, file => Assert.True(file.IsSuccess()));
+                Assert.All(files, file => Assert.True(File.Exists(file.FilePath)));
 
-                byte[] bytes = File.ReadAllBytes(files[0]);
+                byte[] bytes = File.ReadAllBytes(files[0].FilePath);
                 string prefix = Encoding.ASCII.GetString(bytes, 0, Math.Min(8, bytes.Length));
                 Assert.Contains("%PDF-1.4", prefix);
+                Assert.False(string.IsNullOrWhiteSpace(files[0].FileSha256));
             }
             finally
             {
@@ -80,12 +88,18 @@ namespace Mdr.Revit.RevitAdapter.Tests
             try
             {
                 NativeExporter exporter = new NativeExporter();
-                var files = exporter.ExportNativeFiles(new[] { "A-201" }, outputDirectory);
+                var files = exporter.ExportNativeFiles(
+                    new[]
+                    {
+                        new PublishSheetItem { ItemIndex = 0, SheetUniqueId = "A-201" },
+                    },
+                    outputDirectory);
 
                 Assert.Single(files);
-                Assert.True(File.Exists(files[0]));
+                Assert.True(files[0].IsSuccess());
+                Assert.True(File.Exists(files[0].FilePath));
 
-                string text = File.ReadAllText(files[0]);
+                string text = File.ReadAllText(files[0].FilePath);
                 Assert.Contains("MDR_NATIVE_PLACEHOLDER", text);
                 Assert.Contains("SHEET_ID=A-201", text);
             }

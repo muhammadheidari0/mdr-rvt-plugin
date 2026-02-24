@@ -2,7 +2,6 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using Autodesk.Revit.UI;
-using Mdr.Revit.Client.Http;
 using Mdr.Revit.Core.Contracts;
 using Mdr.Revit.Core.Models;
 using Mdr.Revit.Core.UseCases;
@@ -13,13 +12,13 @@ namespace Mdr.Revit.Addin.Commands
 {
     public sealed class PushSchedulesCommand
     {
-        private readonly Func<Uri, IApiClient> _apiClientFactory;
+        private readonly Func<ApiClientFactoryOptions, IApiClient> _apiClientFactory;
         private readonly IRevitExtractor _revitExtractor;
         private readonly PluginLogger _logger;
 
         public PushSchedulesCommand()
             : this(
-                baseAddress => new ApiClient(baseAddress),
+                ApiClientFactory.Create,
                 new RevitExtractorAdapter(new SheetExtractor(), new ScheduleExtractor()),
                 new PluginLogger(DefaultLogDirectory()))
         {
@@ -27,14 +26,14 @@ namespace Mdr.Revit.Addin.Commands
 
         public PushSchedulesCommand(UIDocument uiDocument)
             : this(
-                baseAddress => new ApiClient(baseAddress),
+                ApiClientFactory.Create,
                 RevitApiExtractors.CreateExtractor(uiDocument),
                 new PluginLogger(DefaultLogDirectory()))
         {
         }
 
         internal PushSchedulesCommand(
-            Func<Uri, IApiClient> apiClientFactory,
+            Func<ApiClientFactoryOptions, IApiClient> apiClientFactory,
             IRevitExtractor revitExtractor,
             PluginLogger logger)
         {
@@ -56,8 +55,12 @@ namespace Mdr.Revit.Addin.Commands
 
             ValidateRequest(request);
 
-            Uri baseAddress = new Uri(request.BaseUrl, UriKind.Absolute);
-            IApiClient apiClient = _apiClientFactory(baseAddress);
+            IApiClient apiClient = _apiClientFactory(new ApiClientFactoryOptions
+            {
+                BaseAddress = new Uri(request.BaseUrl, UriKind.Absolute),
+                RequestTimeoutSeconds = request.RequestTimeoutSeconds,
+                AllowInsecureTls = request.AllowInsecureTls,
+            });
             PushSchedulesUseCase useCase = new PushSchedulesUseCase(apiClient, _revitExtractor);
 
             ScheduleIngestRequest ingestRequest = new ScheduleIngestRequest
@@ -160,5 +163,9 @@ namespace Mdr.Revit.Addin.Commands
         public string ViewName { get; set; } = string.Empty;
 
         public string SchemaVersion { get; set; } = "v1";
+
+        public int RequestTimeoutSeconds { get; set; } = 120;
+
+        public bool AllowInsecureTls { get; set; }
     }
 }

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Globalization;
 using System.Text;
 using System.Threading;
@@ -97,6 +98,18 @@ namespace Mdr.Revit.Addin.UI
                 MinWidth = 420,
                 Text = ViewModel.OutputDirectory,
             };
+            TextBox apiBaseUrlTextBox = new TextBox
+            {
+                Margin = new Thickness(8, 0, 8, 0),
+                MinWidth = 420,
+                IsReadOnly = true,
+                Text = ViewModel.ApiBaseUrl,
+            };
+            Button openConfigButton = new Button
+            {
+                Width = 100,
+                Content = "Open Config",
+            };
 
             CheckBox includeNativeCheckBox = new CheckBox
             {
@@ -144,6 +157,8 @@ namespace Mdr.Revit.Addin.UI
             Grid root = BuildLayout(
                 usernameTextBox,
                 passwordBox,
+                apiBaseUrlTextBox,
+                openConfigButton,
                 projectCodeTextBox,
                 outputDirectoryTextBox,
                 includeNativeCheckBox,
@@ -154,6 +169,7 @@ namespace Mdr.Revit.Addin.UI
                 publishButton,
                 cancelButton);
             window.Content = root;
+            bool hasPublished = false;
 
             void RefreshSelectedCountText()
             {
@@ -175,6 +191,7 @@ namespace Mdr.Revit.Addin.UI
                 ViewModel.OutputDirectory = outputDirectoryTextBox.Text ?? string.Empty;
                 ViewModel.IncludeNative = includeNativeCheckBox.IsChecked ?? false;
                 ViewModel.RetryFailedItems = retryFailedCheckBox.IsChecked ?? true;
+                ViewModel.ApiBaseUrl = apiBaseUrlTextBox.Text ?? string.Empty;
             }
 
             sheetsGrid.CellEditEnding += (_, _) =>
@@ -189,6 +206,17 @@ namespace Mdr.Revit.Addin.UI
             {
                 ReloadAvailableSheets();
                 RefreshSheetBindings();
+            };
+
+            openConfigButton.Click += (_, _) =>
+            {
+                OpenConfig();
+                ReloadDefaultsFromConfig();
+                projectCodeTextBox.Text = ViewModel.ProjectCode;
+                outputDirectoryTextBox.Text = ViewModel.OutputDirectory;
+                includeNativeCheckBox.IsChecked = ViewModel.IncludeNative;
+                retryFailedCheckBox.IsChecked = ViewModel.RetryFailedItems;
+                apiBaseUrlTextBox.Text = ViewModel.ApiBaseUrl;
             };
 
             publishButton.Click += (_, _) =>
@@ -246,6 +274,9 @@ namespace Mdr.Revit.Addin.UI
                     PublishSheetsCommandResult result = PublishAsync(request, CancellationToken.None)
                         .GetAwaiter()
                         .GetResult();
+                    ViewModel.ApplyPublishResult(result.FinalResponse);
+                    RefreshSheetBindings();
+                    hasPublished = true;
 
                     MessageBox.Show(
                         BuildSummaryMessage(result),
@@ -254,9 +285,6 @@ namespace Mdr.Revit.Addin.UI
                         result.FinalResponse.Summary.FailedCount > 0
                             ? MessageBoxImage.Warning
                             : MessageBoxImage.Information);
-
-                    window.DialogResult = true;
-                    window.Close();
                 }
                 catch (Exception ex)
                 {
@@ -270,7 +298,7 @@ namespace Mdr.Revit.Addin.UI
 
             cancelButton.Click += (_, _) =>
             {
-                window.DialogResult = false;
+                window.DialogResult = hasPublished ? true : false;
                 window.Close();
             };
 
@@ -280,10 +308,33 @@ namespace Mdr.Revit.Addin.UI
         private void ReloadDefaultsFromConfig()
         {
             var config = _app.LoadConfig();
+            ViewModel.ApiBaseUrl = config.ApiBaseUrl ?? string.Empty;
             ViewModel.ProjectCode = config.ProjectCode ?? string.Empty;
             ViewModel.OutputDirectory = config.PublishOutputDirectory ?? string.Empty;
             ViewModel.IncludeNative = config.IncludeNativeByDefault;
             ViewModel.RetryFailedItems = config.RetryFailedItems;
+        }
+
+        private void OpenConfig()
+        {
+            try
+            {
+                ProcessStartInfo processInfo = new ProcessStartInfo
+                {
+                    FileName = "notepad.exe",
+                    Arguments = "\"" + _app.ConfigPath + "\"",
+                    UseShellExecute = true,
+                };
+                Process.Start(processInfo);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    ex.Message,
+                    "Open Config Failed",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+            }
         }
 
         private static Window CreateWindow()
@@ -342,9 +393,23 @@ namespace Mdr.Revit.Addin.UI
             });
             grid.Columns.Add(new DataGridTextColumn
             {
-                Header = "Status",
+                Header = "Doc Status",
                 Width = 100,
                 Binding = new Binding(nameof(PublishSheetSelectionItem.StatusCode)),
+            });
+            grid.Columns.Add(new DataGridTextColumn
+            {
+                Header = "Status",
+                Width = 120,
+                IsReadOnly = true,
+                Binding = new Binding(nameof(PublishSheetSelectionItem.LastState)),
+            });
+            grid.Columns.Add(new DataGridTextColumn
+            {
+                Header = "Error",
+                Width = 160,
+                IsReadOnly = true,
+                Binding = new Binding(nameof(PublishSheetSelectionItem.LastErrorCode)),
             });
 
             return grid;
@@ -353,6 +418,8 @@ namespace Mdr.Revit.Addin.UI
         private static Grid BuildLayout(
             TextBox usernameTextBox,
             PasswordBox passwordBox,
+            TextBox apiBaseUrlTextBox,
+            Button openConfigButton,
             TextBox projectCodeTextBox,
             TextBox outputDirectoryTextBox,
             CheckBox includeNativeCheckBox,
@@ -431,6 +498,21 @@ namespace Mdr.Revit.Addin.UI
             {
                 Orientation = Orientation.Vertical,
             };
+
+            StackPanel apiPanel = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Margin = new Thickness(0, 0, 0, 6),
+            };
+            apiPanel.Children.Add(new TextBlock
+            {
+                Width = 95,
+                VerticalAlignment = VerticalAlignment.Center,
+                Text = "API Base URL",
+            });
+            apiPanel.Children.Add(apiBaseUrlTextBox);
+            apiPanel.Children.Add(openConfigButton);
+            projectPanel.Children.Add(apiPanel);
 
             StackPanel projectCodePanel = new StackPanel
             {

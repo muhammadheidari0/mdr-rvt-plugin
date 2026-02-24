@@ -2,27 +2,28 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
+using Mdr.Revit.Core.Models;
 
 namespace Mdr.Revit.RevitAdapter.Extractors
 {
     public sealed class NativeExporter
     {
-        private readonly Func<IReadOnlyList<string>, string, IReadOnlyList<string>>? _revitExporter;
+        private readonly Func<IReadOnlyList<PublishSheetItem>, string, IReadOnlyList<ExportArtifact>>? _revitExporter;
 
         public NativeExporter()
         {
         }
 
-        public NativeExporter(Func<IReadOnlyList<string>, string, IReadOnlyList<string>> revitExporter)
+        public NativeExporter(Func<IReadOnlyList<PublishSheetItem>, string, IReadOnlyList<ExportArtifact>> revitExporter)
         {
             _revitExporter = revitExporter ?? throw new ArgumentNullException(nameof(revitExporter));
         }
 
-        public IReadOnlyList<string> ExportNativeFiles(IReadOnlyList<string> sheetIds, string outputDirectory)
+        public IReadOnlyList<ExportArtifact> ExportNativeFiles(IReadOnlyList<PublishSheetItem> items, string outputDirectory)
         {
-            if (sheetIds == null)
+            if (items == null)
             {
-                throw new ArgumentNullException(nameof(sheetIds));
+                throw new ArgumentNullException(nameof(items));
             }
 
             if (string.IsNullOrWhiteSpace(outputDirectory))
@@ -34,28 +35,50 @@ namespace Mdr.Revit.RevitAdapter.Extractors
 
             if (_revitExporter == null)
             {
-                return ExportPlaceholder(sheetIds, outputDirectory);
+                return ExportPlaceholder(items, outputDirectory);
             }
 
-            return _revitExporter(sheetIds, outputDirectory);
+            return _revitExporter(items, outputDirectory);
         }
 
-        private static IReadOnlyList<string> ExportPlaceholder(IReadOnlyList<string> sheetIds, string outputDirectory)
+        private static IReadOnlyList<ExportArtifact> ExportPlaceholder(IReadOnlyList<PublishSheetItem> items, string outputDirectory)
         {
-            List<string> results = new List<string>(sheetIds.Count);
-            for (int i = 0; i < sheetIds.Count; i++)
+            List<ExportArtifact> results = new List<ExportArtifact>(items.Count);
+            for (int i = 0; i < items.Count; i++)
             {
-                string sheetId = string.IsNullOrWhiteSpace(sheetIds[i]) ? ("sheet_" + i) : sheetIds[i].Trim();
-                string fileName = "i" + i + "_native_" + SanitizeToken(sheetId) + ".dwg";
+                PublishSheetItem item = items[i] ?? new PublishSheetItem { ItemIndex = i };
+                int itemIndex = item.ItemIndex < 0 ? i : item.ItemIndex;
+                string sheetId = string.IsNullOrWhiteSpace(item.SheetUniqueId) ? ("sheet_" + itemIndex) : item.SheetUniqueId.Trim();
+                string fileName = "i" + itemIndex + "_native_" + SanitizeToken(sheetId) + ".dwg";
                 string filePath = Path.Combine(outputDirectory, fileName);
 
-                string text =
-                    "MDR_NATIVE_PLACEHOLDER\n" +
-                    "SHEET_ID=" + sheetId + "\n" +
-                    "GENERATED_UTC=" + DateTimeOffset.UtcNow.ToString("o") + "\n";
-                File.WriteAllBytes(filePath, Encoding.UTF8.GetBytes(text));
+                try
+                {
+                    string text =
+                        "MDR_NATIVE_PLACEHOLDER\n" +
+                        "SHEET_ID=" + sheetId + "\n" +
+                        "GENERATED_UTC=" + DateTimeOffset.UtcNow.ToString("o") + "\n";
+                    File.WriteAllBytes(filePath, Encoding.UTF8.GetBytes(text));
 
-                results.Add(filePath);
+                    results.Add(new ExportArtifact
+                    {
+                        ItemIndex = itemIndex,
+                        SheetUniqueId = sheetId,
+                        Kind = ExportArtifactKinds.Native,
+                        FilePath = filePath,
+                    });
+                }
+                catch (Exception ex)
+                {
+                    results.Add(new ExportArtifact
+                    {
+                        ItemIndex = itemIndex,
+                        SheetUniqueId = sheetId,
+                        Kind = ExportArtifactKinds.Native,
+                        ErrorCode = "export_native_failed",
+                        ErrorMessage = ex.Message,
+                    });
+                }
             }
 
             return results;

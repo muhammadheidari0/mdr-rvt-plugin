@@ -1,21 +1,20 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
-using Mdr.Revit.Client.Http;
 using Mdr.Revit.Core.Contracts;
 
 namespace Mdr.Revit.Addin.Commands
 {
     public sealed class LoginCommand
     {
-        private readonly Func<Uri, IApiClient> _apiClientFactory;
+        private readonly Func<ApiClientFactoryOptions, IApiClient> _apiClientFactory;
 
         public LoginCommand()
-            : this(baseAddress => new ApiClient(baseAddress))
+            : this(ApiClientFactory.Create)
         {
         }
 
-        internal LoginCommand(Func<Uri, IApiClient> apiClientFactory)
+        internal LoginCommand(Func<ApiClientFactoryOptions, IApiClient> apiClientFactory)
         {
             _apiClientFactory = apiClientFactory ?? throw new ArgumentNullException(nameof(apiClientFactory));
         }
@@ -46,8 +45,12 @@ namespace Mdr.Revit.Addin.Commands
                 throw new InvalidOperationException("Password is required.");
             }
 
-            Uri baseAddress = new Uri(request.BaseUrl, UriKind.Absolute);
-            IApiClient apiClient = _apiClientFactory(baseAddress);
+            IApiClient apiClient = _apiClientFactory(new ApiClientFactoryOptions
+            {
+                BaseAddress = new Uri(request.BaseUrl, UriKind.Absolute),
+                RequestTimeoutSeconds = request.RequestTimeoutSeconds,
+                AllowInsecureTls = request.AllowInsecureTls,
+            });
             try
             {
                 return await apiClient
@@ -71,5 +74,9 @@ namespace Mdr.Revit.Addin.Commands
         public string Username { get; set; } = string.Empty;
 
         public string Password { get; set; } = string.Empty;
+
+        public int RequestTimeoutSeconds { get; set; } = 120;
+
+        public bool AllowInsecureTls { get; set; }
     }
 }

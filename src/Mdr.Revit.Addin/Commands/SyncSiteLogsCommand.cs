@@ -1,7 +1,6 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
-using Mdr.Revit.Client.Http;
 using Mdr.Revit.Core.Contracts;
 using Mdr.Revit.Core.Models;
 using Mdr.Revit.Core.UseCases;
@@ -12,20 +11,20 @@ namespace Mdr.Revit.Addin.Commands
 {
     public sealed class SyncSiteLogsCommand
     {
-        private readonly Func<Uri, IApiClient> _apiClientFactory;
+        private readonly Func<ApiClientFactoryOptions, IApiClient> _apiClientFactory;
         private readonly IRevitWriter _revitWriter;
         private readonly PluginLogger _logger;
 
         public SyncSiteLogsCommand()
             : this(
-                baseAddress => new ApiClient(baseAddress),
+                ApiClientFactory.Create,
                 new SiteLogsScheduleWriter(),
                 new PluginLogger(DefaultLogDirectory()))
         {
         }
 
         internal SyncSiteLogsCommand(
-            Func<Uri, IApiClient> apiClientFactory,
+            Func<ApiClientFactoryOptions, IApiClient> apiClientFactory,
             IRevitWriter revitWriter,
             PluginLogger logger)
         {
@@ -47,8 +46,12 @@ namespace Mdr.Revit.Addin.Commands
 
             ValidateRequest(request);
 
-            Uri baseAddress = new Uri(request.BaseUrl, UriKind.Absolute);
-            IApiClient apiClient = _apiClientFactory(baseAddress);
+            IApiClient apiClient = _apiClientFactory(new ApiClientFactoryOptions
+            {
+                BaseAddress = new Uri(request.BaseUrl, UriKind.Absolute),
+                RequestTimeoutSeconds = request.RequestTimeoutSeconds,
+                AllowInsecureTls = request.AllowInsecureTls,
+            });
             SyncSiteLogsUseCase useCase = new SyncSiteLogsUseCase(apiClient, _revitWriter);
 
             SiteLogManifestRequest manifestRequest = new SiteLogManifestRequest
@@ -156,5 +159,9 @@ namespace Mdr.Revit.Addin.Commands
         public int Limit { get; set; } = 500;
 
         public string PluginVersion { get; set; } = string.Empty;
+
+        public int RequestTimeoutSeconds { get; set; } = 120;
+
+        public bool AllowInsecureTls { get; set; }
     }
 }

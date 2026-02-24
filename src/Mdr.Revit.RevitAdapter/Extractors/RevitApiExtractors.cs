@@ -33,8 +33,8 @@ namespace Mdr.Revit.RevitAdapter.Extractors
             }
 
             Document document = uiDocument.Document ?? throw new ArgumentNullException(nameof(uiDocument.Document));
-            return new PdfExporter((sheetIds, outputDirectory) =>
-                ExportSheetsToPdf(document, sheetIds, outputDirectory));
+            return new PdfExporter((items, outputDirectory) =>
+                ExportSheetsToPdf(document, items, outputDirectory));
         }
 
         public static NativeExporter CreateNativeExporter(UIDocument uiDocument)
@@ -45,8 +45,8 @@ namespace Mdr.Revit.RevitAdapter.Extractors
             }
 
             Document document = uiDocument.Document ?? throw new ArgumentNullException(nameof(uiDocument.Document));
-            return new NativeExporter((sheetIds, outputDirectory) =>
-                ExportNativeFiles(document, sheetIds, outputDirectory));
+            return new NativeExporter((items, outputDirectory) =>
+                ExportNativeFiles(document, items, outputDirectory));
         }
 
         public static IRevitScheduleSyncAdapter CreateScheduleSyncAdapter(UIDocument uiDocument)
@@ -268,98 +268,165 @@ namespace Mdr.Revit.RevitAdapter.Extractors
             return string.Empty;
         }
 
-        private static IReadOnlyList<string> ExportSheetsToPdf(
+        private static IReadOnlyList<ExportArtifact> ExportSheetsToPdf(
             Document document,
-            IReadOnlyList<string> sheetIds,
+            IReadOnlyList<PublishSheetItem> items,
             string outputDirectory)
         {
-            List<ViewSheet> sheets = ResolveSheets(document, sheetIds);
-            if (sheets.Count == 0)
+            if (items == null || items.Count == 0)
             {
-                return Array.Empty<string>();
+                return Array.Empty<ExportArtifact>();
             }
 
-            HashSet<string> before = new HashSet<string>(
-                Directory.GetFiles(outputDirectory, "*.pdf", SearchOption.TopDirectoryOnly),
-                StringComparer.OrdinalIgnoreCase);
-
-            List<ElementId> ids = sheets.Select(x => x.Id).ToList();
+            Dictionary<int, ViewSheet> sheets = ResolveSheetsByItemIndex(document, items);
+            List<ExportArtifact> artifacts = new List<ExportArtifact>(items.Count);
             PDFExportOptions options = new PDFExportOptions
             {
                 Combine = false,
             };
 
-            bool ok = document.Export(outputDirectory, ids, options);
-            if (!ok)
+            for (int i = 0; i < items.Count; i++)
             {
-                throw new InvalidOperationException("Revit PDF export failed.");
+                PublishSheetItem item = items[i] ?? new PublishSheetItem { ItemIndex = i };
+                int itemIndex = item.ItemIndex < 0 ? i : item.ItemIndex;
+                string sheetUniqueId = item.SheetUniqueId ?? string.Empty;
+                if (!sheets.TryGetValue(itemIndex, out ViewSheet? sheet))
+                {
+                    artifacts.Add(CreateExportFailure(itemIndex, sheetUniqueId, ExportArtifactKinds.Pdf, "sheet_not_found", "Sheet not found in Revit model."));
+                    continue;
+                }
+
+                try
+                {
+                    HashSet<string> before = SnapshotFiles(outputDirectory, "*.pdf");
+                    bool ok = document.Export(
+                        outputDirectory,
+                        new List<ElementId> { sheet.Id },
+                        options);
+                    if (!ok)
+                    {
+                        artifacts.Add(CreateExportFailure(itemIndex, sheetUniqueId, ExportArtifactKinds.Pdf, "export_pdf_failed", "Revit PDF export returned false."));
+                        continue;
+                    }
+
+                    string? producedFile = ResolveProducedFile(outputDirectory, "*.pdf", before);
+                    if (string.IsNullOrWhiteSpace(producedFile) || !File.Exists(producedFile))
+                    {
+                        artifacts.Add(CreateExportFailure(itemIndex, sheetUniqueId, ExportArtifactKinds.Pdf, "export_pdf_failed", "Revit did not produce a PDF file."));
+                        continue;
+                    }
+
+                    string targetName = "i" + itemIndex + "_pdf_" + SanitizeToken(sheet.SheetNumber ?? sheet.UniqueId) + ".pdf";
+                    string targetPath = Path.Combine(outputDirectory, targetName);
+                    if (!string.Equals(producedFile, targetPath, StringComparison.OrdinalIgnoreCase))
+                    {
+                        if (File.Exists(targetPath))
+                        {
+                            File.Delete(targetPath);
+                        }
+
+                        File.Move(producedFile, targetPath);
+                    }
+
+                    artifacts.Add(new ExportArtifact
+                    {
+                        ItemIndex = itemIndex,
+                        SheetUniqueId = sheetUniqueId,
+                        Kind = ExportArtifactKinds.Pdf,
+                        FilePath = targetPath,
+                        FileSha256 = ComputeSha256(targetPath),
+                    });
+                }
+                catch (Exception ex)
+                {
+                    artifacts.Add(CreateExportFailure(itemIndex, sheetUniqueId, ExportArtifactKinds.Pdf, "export_pdf_failed", ex.Message));
+                }
             }
 
-            List<string> produced = Directory.GetFiles(outputDirectory, "*.pdf", SearchOption.TopDirectoryOnly)
-                .Where(x => !before.Contains(x))
-                .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
-                .ToList();
-
-            if (produced.Count == 0)
-            {
-                return Directory.GetFiles(outputDirectory, "*.pdf", SearchOption.TopDirectoryOnly)
-                    .OrderByDescending(File.GetLastWriteTimeUtc)
-                    .Take(sheetIds.Count)
-                    .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
-                    .ToList();
-            }
-
-            return produced;
+            return artifacts;
         }
 
-        private static IReadOnlyList<string> ExportNativeFiles(
+        private static IReadOnlyList<ExportArtifact> ExportNativeFiles(
             Document document,
-            IReadOnlyList<string> sheetIds,
+            IReadOnlyList<PublishSheetItem> items,
             string outputDirectory)
         {
-            List<ViewSheet> sheets = ResolveSheets(document, sheetIds);
-            if (sheets.Count == 0)
+            if (items == null || items.Count == 0)
             {
-                return Array.Empty<string>();
+                return Array.Empty<ExportArtifact>();
             }
 
-            List<string> results = new List<string>(sheets.Count);
-            for (int i = 0; i < sheets.Count; i++)
-            {
-                ViewSheet sheet = sheets[i];
-                string exportName = "i" + i + "_native_" + SanitizeToken(sheet.SheetNumber ?? sheet.UniqueId);
+            Dictionary<int, ViewSheet> sheets = ResolveSheetsByItemIndex(document, items);
+            List<ExportArtifact> artifacts = new List<ExportArtifact>(items.Count);
 
-                bool ok = document.Export(
-                    outputDirectory,
-                    exportName,
-                    new List<ElementId> { sheet.Id },
-                    new DWGExportOptions());
-                if (!ok)
+            for (int i = 0; i < items.Count; i++)
+            {
+                PublishSheetItem item = items[i] ?? new PublishSheetItem { ItemIndex = i };
+                int itemIndex = item.ItemIndex < 0 ? i : item.ItemIndex;
+                string sheetUniqueId = item.SheetUniqueId ?? string.Empty;
+                if (!sheets.TryGetValue(itemIndex, out ViewSheet? sheet))
                 {
+                    artifacts.Add(CreateExportFailure(itemIndex, sheetUniqueId, ExportArtifactKinds.Native, "sheet_not_found", "Sheet not found in Revit model."));
                     continue;
                 }
 
-                string candidate = Path.Combine(outputDirectory, exportName + ".dwg");
-                if (File.Exists(candidate))
+                try
                 {
-                    results.Add(candidate);
-                    continue;
-                }
+                    string exportName = "i" + itemIndex + "_native_" + SanitizeToken(sheet.SheetNumber ?? sheet.UniqueId);
+                    HashSet<string> before = SnapshotFiles(outputDirectory, "*.dwg");
 
-                string[] allDwgs = Directory.GetFiles(outputDirectory, "*.dwg", SearchOption.TopDirectoryOnly);
-                string? latest = allDwgs
-                    .OrderByDescending(File.GetLastWriteTimeUtc)
-                    .FirstOrDefault();
-                if (!string.IsNullOrWhiteSpace(latest))
+                    bool ok = document.Export(
+                        outputDirectory,
+                        exportName,
+                        new List<ElementId> { sheet.Id },
+                        new DWGExportOptions());
+                    if (!ok)
+                    {
+                        artifacts.Add(CreateExportFailure(itemIndex, sheetUniqueId, ExportArtifactKinds.Native, "export_native_failed", "Revit DWG export returned false."));
+                        continue;
+                    }
+
+                    string candidate = Path.Combine(outputDirectory, exportName + ".dwg");
+                    if (!File.Exists(candidate))
+                    {
+                        string? produced = ResolveProducedFile(outputDirectory, "*.dwg", before);
+                        if (!string.IsNullOrWhiteSpace(produced))
+                        {
+                            if (File.Exists(candidate))
+                            {
+                                File.Delete(candidate);
+                            }
+
+                            File.Move(produced, candidate);
+                        }
+                    }
+
+                    if (!File.Exists(candidate))
+                    {
+                        artifacts.Add(CreateExportFailure(itemIndex, sheetUniqueId, ExportArtifactKinds.Native, "export_native_failed", "Revit did not produce a DWG file."));
+                        continue;
+                    }
+
+                    artifacts.Add(new ExportArtifact
+                    {
+                        ItemIndex = itemIndex,
+                        SheetUniqueId = sheetUniqueId,
+                        Kind = ExportArtifactKinds.Native,
+                        FilePath = candidate,
+                    });
+                }
+                catch (Exception ex)
                 {
-                    results.Add(latest);
+                    artifacts.Add(CreateExportFailure(itemIndex, sheetUniqueId, ExportArtifactKinds.Native, "export_native_failed", ex.Message));
                 }
             }
 
-            return results;
+            return artifacts;
         }
 
-        private static List<ViewSheet> ResolveSheets(Document document, IReadOnlyList<string> sheetIds)
+        private static Dictionary<int, ViewSheet> ResolveSheetsByItemIndex(
+            Document document,
+            IReadOnlyList<PublishSheetItem> items)
         {
             Dictionary<string, ViewSheet> byUniqueId = new Dictionary<string, ViewSheet>(StringComparer.OrdinalIgnoreCase);
             Dictionary<string, ViewSheet> bySheetNumber = new Dictionary<string, ViewSheet>(StringComparer.OrdinalIgnoreCase);
@@ -384,28 +451,90 @@ namespace Mdr.Revit.RevitAdapter.Extractors
                 }
             }
 
-            List<ViewSheet> resolved = new List<ViewSheet>(sheetIds.Count);
-            for (int i = 0; i < sheetIds.Count; i++)
+            Dictionary<int, ViewSheet> resolved = new Dictionary<int, ViewSheet>();
+            for (int i = 0; i < items.Count; i++)
             {
-                string token = (sheetIds[i] ?? string.Empty).Trim();
-                if (string.IsNullOrWhiteSpace(token))
+                PublishSheetItem item = items[i] ?? new PublishSheetItem { ItemIndex = i };
+                int itemIndex = item.ItemIndex < 0 ? i : item.ItemIndex;
+
+                if (!string.IsNullOrWhiteSpace(item.SheetUniqueId) &&
+                    byUniqueId.TryGetValue(item.SheetUniqueId.Trim(), out ViewSheet? uniqueSheet))
                 {
+                    resolved[itemIndex] = uniqueSheet;
                     continue;
                 }
 
-                if (byUniqueId.TryGetValue(token, out ViewSheet uniqueSheet))
+                if (!string.IsNullOrWhiteSpace(item.SheetNumber) &&
+                    bySheetNumber.TryGetValue(item.SheetNumber.Trim(), out ViewSheet? numberSheet))
                 {
-                    resolved.Add(uniqueSheet);
-                    continue;
-                }
-
-                if (bySheetNumber.TryGetValue(token, out ViewSheet numberSheet))
-                {
-                    resolved.Add(numberSheet);
+                    resolved[itemIndex] = numberSheet;
                 }
             }
 
             return resolved;
+        }
+
+        private static HashSet<string> SnapshotFiles(string directory, string pattern)
+        {
+            return new HashSet<string>(
+                Directory.GetFiles(directory, pattern, SearchOption.TopDirectoryOnly),
+                StringComparer.OrdinalIgnoreCase);
+        }
+
+        private static string? ResolveProducedFile(
+            string directory,
+            string pattern,
+            HashSet<string> beforeFiles)
+        {
+            string[] files = Directory.GetFiles(directory, pattern, SearchOption.TopDirectoryOnly);
+            string? newestAdded = files
+                .Where(x => !beforeFiles.Contains(x))
+                .OrderByDescending(File.GetLastWriteTimeUtc)
+                .FirstOrDefault();
+            if (!string.IsNullOrWhiteSpace(newestAdded))
+            {
+                return newestAdded;
+            }
+
+            return files
+                .OrderByDescending(File.GetLastWriteTimeUtc)
+                .FirstOrDefault();
+        }
+
+        private static ExportArtifact CreateExportFailure(
+            int itemIndex,
+            string sheetUniqueId,
+            string kind,
+            string errorCode,
+            string errorMessage)
+        {
+            return new ExportArtifact
+            {
+                ItemIndex = itemIndex,
+                SheetUniqueId = sheetUniqueId ?? string.Empty,
+                Kind = kind ?? string.Empty,
+                ErrorCode = errorCode ?? string.Empty,
+                ErrorMessage = errorMessage ?? string.Empty,
+            };
+        }
+
+        private static string ComputeSha256(string filePath)
+        {
+            using (System.Security.Cryptography.SHA256 sha = System.Security.Cryptography.SHA256.Create())
+            using (FileStream stream = File.OpenRead(filePath))
+            {
+                byte[] hash = sha.ComputeHash(stream);
+                char[] chars = new char[hash.Length * 2];
+                int offset = 0;
+                for (int i = 0; i < hash.Length; i++)
+                {
+                    string hex = hash[i].ToString("x2");
+                    chars[offset++] = hex[0];
+                    chars[offset++] = hex[1];
+                }
+
+                return new string(chars);
+            }
         }
 
         private static string SanitizeToken(string value)

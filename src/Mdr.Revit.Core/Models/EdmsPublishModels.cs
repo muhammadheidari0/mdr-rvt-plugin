@@ -4,6 +4,36 @@ using System.IO;
 
 namespace Mdr.Revit.Core.Models
 {
+    public static class ExportArtifactKinds
+    {
+        public const string Pdf = "pdf";
+
+        public const string Native = "native";
+    }
+
+    public sealed class ExportArtifact
+    {
+        public int ItemIndex { get; set; }
+
+        public string SheetUniqueId { get; set; } = string.Empty;
+
+        public string Kind { get; set; } = string.Empty;
+
+        public string FilePath { get; set; } = string.Empty;
+
+        public string FileSha256 { get; set; } = string.Empty;
+
+        public string ErrorCode { get; set; } = string.Empty;
+
+        public string ErrorMessage { get; set; } = string.Empty;
+
+        public bool IsSuccess()
+        {
+            return string.IsNullOrWhiteSpace(ErrorCode) &&
+                !string.IsNullOrWhiteSpace(FilePath);
+        }
+    }
+
     public sealed class PublishBatchRequest
     {
         public string RunClientId { get; set; } = Guid.NewGuid().ToString("N");
