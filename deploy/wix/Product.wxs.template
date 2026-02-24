@@ -1,4 +1,5 @@
-<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util">
   <Package
     Name="__PRODUCT_NAME__"
     Manufacturer="__MANUFACTURER__"
@@ -36,6 +37,15 @@ __BINARY_COMPONENTS__
     <DirectoryRef Id="AddinsVersionDir">
       <Component Id="CmpManifest" Guid="*">
         <File Id="FManifest" Source="$(var.PackageRoot)\msi\Mdr.Revit.addin" KeyPath="yes" />
+        <!-- Revit does not expand %LocalAppData% in .addin Assembly path.
+             Resolve and write absolute per-user path at MSI install-time. -->
+        <util:XmlFile
+          Id="SetManifestAssemblyPath"
+          Action="setValue"
+          File="[AddinsVersionDir]Mdr.Revit.addin"
+          ElementPath="/RevitAddIns/AddIn/Assembly"
+          SelectionLanguage="XPath"
+          Value="[LocalAppDataFolder]MDR\RevitPlugin\addin\__REVIT_VERSION__\Mdr.Revit.Addin.dll" />
       </Component>
     </DirectoryRef>
 

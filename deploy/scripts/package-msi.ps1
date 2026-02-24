@@ -168,8 +168,73 @@ Install options:
 2) Official WiX installer:
    https://wixtoolset.org
 
+Required extension for this project:
+   wix extension add WixToolset.Util.wixext/<wix-major.minor.patch>
+Example:
+   wix extension add WixToolset.Util.wixext/6.0.2
+
 Then re-run this script, or pass -SkipMsi to create ZIP only.
 "@
+}
+
+function Get-WixSemanticVersion {
+    param([string]$WixExe)
+
+    $raw = & $WixExe --version 2>&1
+    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($raw)) {
+        return ""
+    }
+
+    $text = ($raw | Out-String)
+    $match = [regex]::Match($text, "\b\d+\.\d+\.\d+\b")
+    if (-not $match.Success) {
+        return ""
+    }
+
+    return $match.Value
+}
+
+function Has-WixExtension {
+    param(
+        [string]$WixExe,
+        [string]$ExtensionId
+    )
+
+    $listOutput = & $WixExe extension list 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        return $false
+    }
+
+    $text = ($listOutput | Out-String)
+    return $text -match ("(?im)^" + [regex]::Escape($ExtensionId) + "\b")
+}
+
+function Ensure-WixExtension {
+    param(
+        [string]$WixExe,
+        [string]$ExtensionId
+    )
+
+    if (Has-WixExtension -WixExe $WixExe -ExtensionId $ExtensionId) {
+        return
+    }
+
+    $wixVersion = Get-WixSemanticVersion -WixExe $WixExe
+    $attempts = New-Object System.Collections.Generic.List[string]
+    if (-not [string]::IsNullOrWhiteSpace($wixVersion)) {
+        [void]$attempts.Add("$ExtensionId/$wixVersion")
+    }
+    [void]$attempts.Add($ExtensionId)
+
+    foreach ($extensionRef in $attempts) {
+        & $WixExe extension add $extensionRef 2>&1 | Out-Null
+        if ($LASTEXITCODE -eq 0 -and (Has-WixExtension -WixExe $WixExe -ExtensionId $ExtensionId)) {
+            return
+        }
+    }
+
+    $guidance = Get-WixInstallGuidance
+    throw "Required WiX extension was not found/installed: $ExtensionId.`n`n$guidance"
 }
 
 function Copy-PackageFiles {
@@ -221,7 +286,8 @@ function Write-MsiManifestTemplate {
         [string]$RevitVersionValue
     )
 
-    # Revit reads the manifest at runtime; using %LocalAppData% keeps path user-specific.
+    # The Assembly path is rewritten by WiX util:XmlFile at install-time to an absolute user path.
+    # Keep this as a template placeholder value in the package.
     $xml = @"
 <?xml version="1.0" encoding="utf-8"?>
 <RevitAddIns>
@@ -368,6 +434,7 @@ if (-not $SkipMsi) {
         $guidance = Get-WixInstallGuidance
         throw "WiX CLI was not found.`n`n$guidance"
     }
+    Ensure-WixExtension -WixExe $wixExe -ExtensionId "WixToolset.Util.wixext"
 
     $manifestOutputDir = Join-Path $packageRoot "msi"
     Ensure-Directory -PathValue $manifestOutputDir
@@ -398,6 +465,7 @@ if (-not $SkipMsi) {
 
     & $wixExe build `
         -arch x64 `
+        -ext WixToolset.Util.wixext `
         -out $msiPath `
         $wxsPath `
         -d PackageRoot=$packageRoot
