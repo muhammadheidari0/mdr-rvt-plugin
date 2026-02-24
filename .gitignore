@@ -16,6 +16,7 @@ TestResults/
 
 # Local .NET SDK / tool cache
 .dotnet/
+.wix/
 
 # NuGet
 packages/
