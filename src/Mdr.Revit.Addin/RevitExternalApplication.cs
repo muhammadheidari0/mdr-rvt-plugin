@@ -46,6 +46,12 @@ namespace Mdr.Revit.Addin
                 RibbonPanel panel = EnsureRibbonPanel(application, RibbonTabName, RibbonPanelName);
                 AddRibbonButton(
                     panel,
+                    "mdr.publishSheets",
+                    "Publish to MDR",
+                    "Select Revit sheets and publish PDF/native files to MDR EDMS.",
+                    typeof(PublishSheetsExternalCommand));
+                AddRibbonButton(
+                    panel,
                     "mdr.googleSync",
                     "Google Sheets Sync",
                     "Open Google Sheets schedule sync dialog.",

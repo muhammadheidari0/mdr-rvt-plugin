@@ -14,6 +14,14 @@ namespace Mdr.Revit.Addin.UI
 
         public bool RetryFailedItems { get; set; } = true;
 
+        public string Username { get; set; } = string.Empty;
+
+        public string Password { get; set; } = string.Empty;
+
+        public string ProjectCode { get; set; } = string.Empty;
+
+        public string OutputDirectory { get; set; } = string.Empty;
+
         public int SelectedCount
         {
             get
