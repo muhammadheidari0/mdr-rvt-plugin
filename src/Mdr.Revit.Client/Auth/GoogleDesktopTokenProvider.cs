@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Net.Http;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -116,8 +117,10 @@ namespace Mdr.Revit.Client.Auth
 
         private sealed class GoogleRefreshTokenResponse
         {
+            [JsonPropertyName("access_token")]
             public string AccessToken { get; set; } = string.Empty;
 
+            [JsonPropertyName("expires_in")]
             public int ExpiresIn { get; set; }
         }
     }
