@@ -43,6 +43,8 @@ namespace Mdr.Revit.Infra.Config
 
         public UpdatesPluginConfig Updates { get; set; } = new UpdatesPluginConfig();
 
+        public AdminModePluginConfig AdminMode { get; set; } = new AdminModePluginConfig();
+
         public SmartNumberingPluginConfig SmartNumbering { get; set; } = new SmartNumberingPluginConfig();
 
         public static PluginConfig Default => new PluginConfig();
@@ -89,6 +91,21 @@ namespace Mdr.Revit.Infra.Config
         public bool RequireSignature { get; set; } = true;
 
         public List<string> AllowedPublisherThumbprints { get; } = new List<string>();
+    }
+
+    public sealed class AdminModePluginConfig
+    {
+        public bool Enabled { get; set; } = true;
+
+        public string PinHash { get; set; } = string.Empty;
+
+        public string PinSalt { get; set; } = string.Empty;
+
+        public int PinIterations { get; set; } = 120000;
+
+        public int MaxAttempts { get; set; } = 5;
+
+        public int LockoutSeconds { get; set; } = 60;
     }
 
     public sealed class SmartNumberingPluginConfig

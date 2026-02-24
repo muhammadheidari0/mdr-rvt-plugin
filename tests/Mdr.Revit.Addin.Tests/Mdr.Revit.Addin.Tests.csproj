@@ -14,6 +14,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Mdr.Revit.Addin\Mdr.Revit.Addin.csproj" />
     <ProjectReference Include="..\..\src\Mdr.Revit.Core\Mdr.Revit.Core.csproj" />
+    <ProjectReference Include="..\..\src\Mdr.Revit.Infra\Mdr.Revit.Infra.csproj" />
   </ItemGroup>
 
   <ItemGroup>

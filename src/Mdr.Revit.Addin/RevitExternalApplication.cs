@@ -70,6 +70,14 @@ namespace Mdr.Revit.Addin
                     typeof(SmartNumberingExternalCommand),
                     "Resources\\Icons\\smart-16.png",
                     "Resources\\Icons\\smart-32.png");
+                AddRibbonButton(
+                    panel,
+                    "mdr.settings",
+                    "Settings",
+                    "Open protected plugin settings.",
+                    typeof(SettingsExternalCommand),
+                    "Resources\\Icons\\settings-16.png",
+                    "Resources\\Icons\\settings-32.png");
                 return Result.Succeeded;
             }
             catch

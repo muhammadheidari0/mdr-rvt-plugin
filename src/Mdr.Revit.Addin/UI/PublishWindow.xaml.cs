@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Globalization;
 using System.Text;
 using System.Threading;
@@ -105,11 +104,12 @@ namespace Mdr.Revit.Addin.UI
                 IsReadOnly = true,
                 Text = ViewModel.ApiBaseUrl,
             };
-            Button openConfigButton = new Button
+            Button settingsButton = new Button
             {
                 Width = 100,
-                Content = "Open Config",
+                Content = "Settings...",
             };
+            SettingsAccessWorkflow settingsWorkflow = new SettingsAccessWorkflow(_app);
 
             CheckBox includeNativeCheckBox = new CheckBox
             {
@@ -158,7 +158,7 @@ namespace Mdr.Revit.Addin.UI
                 usernameTextBox,
                 passwordBox,
                 apiBaseUrlTextBox,
-                openConfigButton,
+                settingsButton,
                 projectCodeTextBox,
                 outputDirectoryTextBox,
                 includeNativeCheckBox,
@@ -208,9 +208,9 @@ namespace Mdr.Revit.Addin.UI
                 RefreshSheetBindings();
             };
 
-            openConfigButton.Click += (_, _) =>
+            settingsButton.Click += (_, _) =>
             {
-                OpenConfig();
+                settingsWorkflow.OpenSettings();
                 ReloadDefaultsFromConfig();
                 projectCodeTextBox.Text = ViewModel.ProjectCode;
                 outputDirectoryTextBox.Text = ViewModel.OutputDirectory;
@@ -315,28 +315,6 @@ namespace Mdr.Revit.Addin.UI
             ViewModel.RetryFailedItems = config.RetryFailedItems;
         }
 
-        private void OpenConfig()
-        {
-            try
-            {
-                ProcessStartInfo processInfo = new ProcessStartInfo
-                {
-                    FileName = "notepad.exe",
-                    Arguments = "\"" + _app.ConfigPath + "\"",
-                    UseShellExecute = true,
-                };
-                Process.Start(processInfo);
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show(
-                    ex.Message,
-                    "Open Config Failed",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Error);
-            }
-        }
-
         private static Window CreateWindow()
         {
             return new Window
@@ -419,7 +397,7 @@ namespace Mdr.Revit.Addin.UI
             TextBox usernameTextBox,
             PasswordBox passwordBox,
             TextBox apiBaseUrlTextBox,
-            Button openConfigButton,
+            Button settingsButton,
             TextBox projectCodeTextBox,
             TextBox outputDirectoryTextBox,
             CheckBox includeNativeCheckBox,
@@ -511,7 +489,7 @@ namespace Mdr.Revit.Addin.UI
                 Text = "API Base URL",
             });
             apiPanel.Children.Add(apiBaseUrlTextBox);
-            apiPanel.Children.Add(openConfigButton);
+            apiPanel.Children.Add(settingsButton);
             projectPanel.Children.Add(apiPanel);
 
             StackPanel projectCodePanel = new StackPanel

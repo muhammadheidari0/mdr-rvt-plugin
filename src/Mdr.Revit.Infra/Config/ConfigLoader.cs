@@ -125,6 +125,26 @@ namespace Mdr.Revit.Infra.Config
                 config.Updates.CheckIntervalHours = 24;
             }
 
+            if (config.AdminMode == null)
+            {
+                config.AdminMode = new AdminModePluginConfig();
+            }
+
+            if (config.AdminMode.PinIterations <= 0)
+            {
+                config.AdminMode.PinIterations = 120000;
+            }
+
+            if (config.AdminMode.MaxAttempts <= 0)
+            {
+                config.AdminMode.MaxAttempts = 5;
+            }
+
+            if (config.AdminMode.LockoutSeconds <= 0)
+            {
+                config.AdminMode.LockoutSeconds = 60;
+            }
+
             if (config.SmartNumbering == null)
             {
                 config.SmartNumbering = new SmartNumberingPluginConfig();
