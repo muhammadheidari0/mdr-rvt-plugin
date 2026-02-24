@@ -23,7 +23,7 @@ namespace Mdr.Revit.Infra.Config
 
         public string ProjectCode { get; set; } = string.Empty;
 
-        public string PluginVersion { get; set; } = "0.3.0";
+        public string PluginVersion { get; set; } = "0.3.6";
 
         public int RequestTimeoutSeconds { get; set; } = 120;
 

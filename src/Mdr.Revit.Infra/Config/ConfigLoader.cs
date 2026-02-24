@@ -77,7 +77,7 @@ namespace Mdr.Revit.Infra.Config
 
             if (string.IsNullOrWhiteSpace(config.PluginVersion))
             {
-                config.PluginVersion = "0.3.0";
+                config.PluginVersion = "0.3.6";
             }
 
             if (string.IsNullOrWhiteSpace(config.DefaultPublishStatusCode))

@@ -134,7 +134,7 @@ namespace Mdr.Revit.Addin
                 ModelGuid = request.ModelGuid ?? string.Empty,
                 ModelTitle = request.ModelTitle ?? string.Empty,
                 RevitVersion = string.IsNullOrWhiteSpace(request.RevitVersion) ? "2026" : request.RevitVersion,
-                PluginVersion = string.IsNullOrWhiteSpace(config.PluginVersion) ? "0.3.0" : config.PluginVersion,
+                PluginVersion = string.IsNullOrWhiteSpace(config.PluginVersion) ? "0.3.6" : config.PluginVersion,
                 DefaultStatusCode = string.IsNullOrWhiteSpace(config.DefaultPublishStatusCode)
                     ? "IFA"
                     : config.DefaultPublishStatusCode,
@@ -206,7 +206,7 @@ namespace Mdr.Revit.Addin
                 ClientModelGuid = request.ClientModelGuid ?? string.Empty,
                 UpdatedAfterUtc = request.UpdatedAfterUtc,
                 Limit = request.Limit <= 0 ? 500 : request.Limit,
-                PluginVersion = string.IsNullOrWhiteSpace(config.PluginVersion) ? "0.3.0" : config.PluginVersion,
+                PluginVersion = string.IsNullOrWhiteSpace(config.PluginVersion) ? "0.3.6" : config.PluginVersion,
                 RequestTimeoutSeconds = config.RequestTimeoutSeconds,
                 AllowInsecureTls = config.AllowInsecureTls,
             };
@@ -298,7 +298,7 @@ namespace Mdr.Revit.Addin
             PluginConfig config = LoadConfig();
             CheckUpdatesCommandRequest commandRequest = new CheckUpdatesCommandRequest
             {
-                CurrentVersion = string.IsNullOrWhiteSpace(config.PluginVersion) ? "0.3.0" : config.PluginVersion,
+                CurrentVersion = string.IsNullOrWhiteSpace(config.PluginVersion) ? "0.3.6" : config.PluginVersion,
                 Channel = string.IsNullOrWhiteSpace(request.Channel) ? config.Updates.Channel : request.Channel,
                 GithubRepo = string.IsNullOrWhiteSpace(request.GithubRepo) ? config.Updates.GithubRepo : request.GithubRepo,
                 DownloadDirectory = ResolveUpdatesDirectory(request.DownloadDirectory),

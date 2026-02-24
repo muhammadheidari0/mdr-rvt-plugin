@@ -176,7 +176,7 @@ namespace Mdr.Revit.Addin.Commands
                 ModelGuid = request.ModelGuid ?? string.Empty,
                 ModelTitle = request.ModelTitle ?? string.Empty,
                 RevitVersion = string.IsNullOrWhiteSpace(request.RevitVersion) ? "2026" : request.RevitVersion,
-                PluginVersion = string.IsNullOrWhiteSpace(request.PluginVersion) ? "0.3.0" : request.PluginVersion,
+                PluginVersion = string.IsNullOrWhiteSpace(request.PluginVersion) ? "0.3.6" : request.PluginVersion,
             };
 
             IReadOnlyList<PublishSheetItem> inputItems = request.Items.Count > 0
@@ -655,7 +655,7 @@ namespace Mdr.Revit.Addin.Commands
 
         public string RevitVersion { get; set; } = "2026";
 
-        public string PluginVersion { get; set; } = "0.3.0";
+        public string PluginVersion { get; set; } = "0.3.6";
 
         public string DefaultStatusCode { get; set; } = "IFA";
 
