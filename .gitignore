@@ -32,3 +32,4 @@ config/*.local.json
 *.temp
 build_output.log
 test_full.log
+helpmecmd.md
