@@ -34,4 +34,9 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Resources\Google\credentials.json" Condition="Exists('Resources\Google\credentials.json')" />
+    <None Include="Resources\Google\credentials.template.json" />
+  </ItemGroup>
 </Project>

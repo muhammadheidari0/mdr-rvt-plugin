@@ -4,6 +4,7 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using Autodesk.Revit.UI;
+using Mdr.Revit.Addin.Security;
 using Mdr.Revit.Client.Auth;
 using Mdr.Revit.Client.Http;
 using Mdr.Revit.Core.Contracts;
@@ -55,6 +56,7 @@ namespace Mdr.Revit.Addin.Commands
                 throw new ArgumentNullException(nameof(request));
             }
 
+            ApplyEmbeddedCredentialsFallback(request);
             ValidateRequest(request);
             _logger.Info("Starting Google Sheets sync direction=" + request.Direction);
 
@@ -162,7 +164,35 @@ namespace Mdr.Revit.Addin.Commands
 
             if (string.IsNullOrWhiteSpace(request.GoogleClientId) || string.IsNullOrWhiteSpace(request.GoogleClientSecret))
             {
-                throw new InvalidOperationException("Google OAuth client credentials are required.");
+                throw new InvalidOperationException(
+                    "Google OAuth client credentials are required. " +
+                    "Set google.clientId/clientSecret in config or embed Resources/Google/credentials.json.");
+            }
+        }
+
+        private static void ApplyEmbeddedCredentialsFallback(GoogleSyncCommandRequest request)
+        {
+            bool hasClientId = !string.IsNullOrWhiteSpace(request.GoogleClientId);
+            bool hasClientSecret = !string.IsNullOrWhiteSpace(request.GoogleClientSecret);
+            if (hasClientId && hasClientSecret)
+            {
+                return;
+            }
+
+            EmbeddedGoogleOAuthCredentials embedded = EmbeddedGoogleOAuthCredentialsProvider.Load();
+            if (!embedded.IsConfigured)
+            {
+                return;
+            }
+
+            if (!hasClientId)
+            {
+                request.GoogleClientId = embedded.ClientId;
+            }
+
+            if (!hasClientSecret)
+            {
+                request.GoogleClientSecret = embedded.ClientSecret;
             }
         }
 

@@ -25,6 +25,7 @@ packages/
 config/appsettings.json
 config/mdr.mapping.json
 config/*.local.json
+src/Mdr.Revit.Addin/Resources/Google/credentials.json
 
 # Logs and temp files
 *.log

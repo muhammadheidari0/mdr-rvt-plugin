@@ -43,6 +43,16 @@
   - `MDR_GOOGLE_CLIENT_SECRET`
   - `MDR_GOOGLE_REFRESH_TOKEN`
 
+### Google OAuth embedded credentials (recommended for packaged plugin)
+
+1. Copy `src/Mdr.Revit.Addin/Resources/Google/credentials.template.json` to:
+   - `src/Mdr.Revit.Addin/Resources/Google/credentials.json`
+2. Paste your Google Desktop OAuth JSON (`client_id`/`client_secret`) into that file.
+3. Build/package plugin.
+
+- `credentials.json` is embedded into `Mdr.Revit.Addin.dll` at build time (not deployed as a sidecar file).
+- If `google.clientId/clientSecret` exist in runtime config, config values take precedence.
+
 ## Release packaging
 
 ### Build ZIP + MSI (official release)
