@@ -84,7 +84,20 @@ namespace Mdr.Revit.Addin.Commands
                 {
                     SyncScheduleToGoogleUseCase useCase = new SyncScheduleToGoogleUseCase(googleClient, _revitScheduleSyncAdapter);
                     GoogleScheduleSyncResult result = await useCase.ExecuteAsync(syncRequest, cancellationToken);
-                    _logger.Info("Google Sheets export completed rows=" + result.ExportedRows);
+                    _logger.Info(
+                        "Google Sheets export completed rows=" + result.ExportedRows +
+                        " skipped=" + result.SkippedRows);
+
+                    foreach (KeyValuePair<string, int> reason in result.SkippedByReason)
+                    {
+                        _logger.Info("Google Sheets export skipped reason=" + reason.Key + " count=" + reason.Value);
+                    }
+
+                    for (int i = 0; i < result.Warnings.Count; i++)
+                    {
+                        _logger.Info("Google Sheets export warning code=" + result.Warnings[i]);
+                    }
+
                     return result;
                 }
 
@@ -100,6 +113,21 @@ namespace Mdr.Revit.Addin.Commands
 
         private static GoogleSheetSyncProfile BuildProfile(GoogleSyncCommandRequest request)
         {
+            HashSet<string> protectedColumns = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            {
+                "MDR_UNIQUE_ID",
+                "MDR_ELEMENT_ID",
+            };
+
+            for (int i = 0; i < request.ProtectedColumns.Count; i++)
+            {
+                string value = (request.ProtectedColumns[i] ?? string.Empty).Trim();
+                if (!string.IsNullOrWhiteSpace(value))
+                {
+                    protectedColumns.Add(value);
+                }
+            }
+
             GoogleSheetSyncProfile profile = new GoogleSheetSyncProfile
             {
                 SpreadsheetId = request.SpreadsheetId,
@@ -107,14 +135,74 @@ namespace Mdr.Revit.Addin.Commands
                 AnchorColumn = request.AnchorColumn,
             };
 
+            HashSet<string> mappedColumns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             for (int i = 0; i < request.ColumnMappings.Count; i++)
             {
-                profile.ColumnMappings.Add(request.ColumnMappings[i]);
+                GoogleSheetColumnMapping? mapping = request.ColumnMappings[i];
+                if (mapping == null)
+                {
+                    continue;
+                }
+
+                string sheetColumn = (mapping.SheetColumn ?? string.Empty).Trim();
+                string revitParameter = (mapping.RevitParameter ?? string.Empty).Trim();
+                if (string.IsNullOrWhiteSpace(sheetColumn) || string.IsNullOrWhiteSpace(revitParameter))
+                {
+                    continue;
+                }
+
+                GoogleSheetColumnMapping normalized = new GoogleSheetColumnMapping
+                {
+                    SheetColumn = sheetColumn,
+                    RevitParameter = revitParameter,
+                    IsEditable = mapping.IsEditable && !protectedColumns.Contains(sheetColumn),
+                };
+
+                if (mappedColumns.Contains(sheetColumn))
+                {
+                    for (int m = 0; m < profile.ColumnMappings.Count; m++)
+                    {
+                        if (string.Equals(profile.ColumnMappings[m].SheetColumn, sheetColumn, StringComparison.OrdinalIgnoreCase))
+                        {
+                            profile.ColumnMappings[m] = normalized;
+                            break;
+                        }
+                    }
+                }
+                else
+                {
+                    profile.ColumnMappings.Add(normalized);
+                    mappedColumns.Add(sheetColumn);
+                }
             }
 
-            for (int i = 0; i < request.ProtectedColumns.Count; i++)
+            foreach (string systemColumn in new[] { "MDR_UNIQUE_ID", "MDR_ELEMENT_ID" })
             {
-                profile.ProtectedColumns.Add(request.ProtectedColumns[i]);
+                if (mappedColumns.Contains(systemColumn))
+                {
+                    for (int i = 0; i < profile.ColumnMappings.Count; i++)
+                    {
+                        if (string.Equals(profile.ColumnMappings[i].SheetColumn, systemColumn, StringComparison.OrdinalIgnoreCase))
+                        {
+                            profile.ColumnMappings[i].IsEditable = false;
+                            break;
+                        }
+                    }
+                }
+                else
+                {
+                    profile.ColumnMappings.Add(new GoogleSheetColumnMapping
+                    {
+                        SheetColumn = systemColumn,
+                        RevitParameter = systemColumn,
+                        IsEditable = false,
+                    });
+                }
+            }
+
+            foreach (string protectedColumn in protectedColumns)
+            {
+                profile.ProtectedColumns.Add(protectedColumn);
             }
 
             return profile;

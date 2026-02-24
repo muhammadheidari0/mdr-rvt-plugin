@@ -31,8 +31,95 @@ namespace Mdr.Revit.Core.Tests
                 CancellationToken.None);
 
             Assert.Equal(1, result.ExportedRows);
+            Assert.Equal(0, result.SkippedRows);
             Assert.Equal(1, google.WriteCount);
+            Assert.Equal(1, google.LastWrittenRowCount);
             Assert.Equal(1, adapter.ExtractCount);
+        }
+
+        [Fact]
+        public async Task SyncScheduleToGoogle_SkipsInvalidRowsAndTracksReasons()
+        {
+            FakeGoogleSheetsClient google = new FakeGoogleSheetsClient();
+            FakeScheduleAdapter adapter = new FakeScheduleAdapter();
+
+            adapter.Extracted.Add(new ScheduleSyncRow
+            {
+                AnchorUniqueId = "uid-valid",
+            });
+
+            ScheduleSyncRow missingAnchor = new ScheduleSyncRow
+            {
+                ChangeState = ScheduleSyncStates.Error,
+            };
+            missingAnchor.Errors.Add(new ScheduleSyncError
+            {
+                Code = "anchor_missing",
+                Message = "Anchor is required.",
+            });
+            adapter.Extracted.Add(missingAnchor);
+
+            ScheduleSyncRow aggregate = new ScheduleSyncRow
+            {
+                ChangeState = ScheduleSyncStates.Error,
+            };
+            aggregate.Errors.Add(new ScheduleSyncError
+            {
+                Code = "aggregate_row_skipped",
+                Message = "Aggregate row skipped.",
+            });
+            adapter.Extracted.Add(aggregate);
+
+            SyncScheduleToGoogleUseCase useCase = new SyncScheduleToGoogleUseCase(google, adapter);
+            GoogleScheduleSyncResult result = await useCase.ExecuteAsync(
+                new GoogleScheduleSyncRequest
+                {
+                    Direction = GoogleSyncDirections.Export,
+                    ScheduleName = "Room Schedule",
+                    Profile = NewProfile(),
+                },
+                CancellationToken.None);
+
+            Assert.Equal(1, result.ExportedRows);
+            Assert.Equal(2, result.SkippedRows);
+            Assert.Equal(1, google.WriteCount);
+            Assert.Equal(1, google.LastWrittenRowCount);
+            Assert.Equal(1, result.SkippedByReason["anchor_missing"]);
+            Assert.Equal(1, result.SkippedByReason["aggregate_row_skipped"]);
+        }
+
+        [Fact]
+        public async Task SyncScheduleToGoogle_WhenScheduleNotItemized_DoesNotWriteAndReturnsWarning()
+        {
+            FakeGoogleSheetsClient google = new FakeGoogleSheetsClient();
+            FakeScheduleAdapter adapter = new FakeScheduleAdapter();
+
+            ScheduleSyncRow error = new ScheduleSyncRow
+            {
+                ChangeState = ScheduleSyncStates.Error,
+            };
+            error.Errors.Add(new ScheduleSyncError
+            {
+                Code = "schedule_not_itemized",
+                Message = "Enable Itemize every instance.",
+            });
+            adapter.Extracted.Add(error);
+
+            SyncScheduleToGoogleUseCase useCase = new SyncScheduleToGoogleUseCase(google, adapter);
+            GoogleScheduleSyncResult result = await useCase.ExecuteAsync(
+                new GoogleScheduleSyncRequest
+                {
+                    Direction = GoogleSyncDirections.Export,
+                    ScheduleName = "Room Schedule",
+                    Profile = NewProfile(),
+                },
+                CancellationToken.None);
+
+            Assert.Equal(0, result.ExportedRows);
+            Assert.Equal(1, result.SkippedRows);
+            Assert.Equal(0, google.WriteCount);
+            Assert.Equal(1, result.SkippedByReason["schedule_not_itemized"]);
+            Assert.Contains("schedule_not_itemized", result.Warnings);
         }
 
         [Fact]
@@ -80,6 +167,8 @@ namespace Mdr.Revit.Core.Tests
 
             public int WriteCount { get; private set; }
 
+            public int LastWrittenRowCount { get; private set; }
+
             public Task<GoogleSheetReadResult> ReadRowsAsync(
                 GoogleSheetSyncProfile profile,
                 CancellationToken cancellationToken)
@@ -98,6 +187,7 @@ namespace Mdr.Revit.Core.Tests
                 _ = rows;
                 _ = cancellationToken;
                 WriteCount++;
+                LastWrittenRowCount = rows.Count;
                 return Task.FromResult(new GoogleSheetWriteResult
                 {
                     UpdatedRows = rows.Count,

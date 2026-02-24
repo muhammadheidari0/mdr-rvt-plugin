@@ -447,9 +447,56 @@ namespace Mdr.Revit.Addin.UI
             string message;
             if (string.Equals(result.Direction, GoogleSyncDirections.Export, StringComparison.OrdinalIgnoreCase))
             {
-                message = "Export completed.\n" +
-                    "Rows exported: " + result.ExportedRows + "\n" +
-                    "Updated range: " + (result.WriteResult.UpdatedRange ?? string.Empty);
+                System.Collections.Generic.List<string> lines = new System.Collections.Generic.List<string>
+                {
+                    "Export completed.",
+                    "Rows exported: " + result.ExportedRows,
+                    "Rows skipped: " + result.SkippedRows,
+                };
+
+                if (result.SkippedByReason.Count > 0)
+                {
+                    lines.Add("Skipped by reason:");
+                    foreach (System.Collections.Generic.KeyValuePair<string, int> pair in result.SkippedByReason)
+                    {
+                        lines.Add(" - " + pair.Key + ": " + pair.Value);
+                    }
+                }
+
+                if (!string.IsNullOrWhiteSpace(result.WriteResult.UpdatedRange))
+                {
+                    lines.Add("Updated range: " + result.WriteResult.UpdatedRange);
+                }
+
+                if (result.Warnings.Count > 0)
+                {
+                    lines.Add("Warnings:");
+                    for (int i = 0; i < result.Warnings.Count; i++)
+                    {
+                        string code = result.Warnings[i];
+                        if (string.Equals(code, "schedule_not_itemized", StringComparison.OrdinalIgnoreCase))
+                        {
+                            lines.Add(" - schedule_not_itemized: Itemize every instance in Revit Schedule settings.");
+                            continue;
+                        }
+
+                        if (string.Equals(code, "aggregate_row_skipped", StringComparison.OrdinalIgnoreCase))
+                        {
+                            lines.Add(" - aggregate_row_skipped: Group/total rows were skipped for safe sync.");
+                            continue;
+                        }
+
+                        if (string.Equals(code, "header_duplicate_renamed", StringComparison.OrdinalIgnoreCase))
+                        {
+                            lines.Add(" - header_duplicate_renamed: Duplicate headers were renamed with suffixes.");
+                            continue;
+                        }
+
+                        lines.Add(" - " + code);
+                    }
+                }
+
+                message = string.Join("\n", lines);
             }
             else
             {

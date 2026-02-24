@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using Autodesk.Revit.DB;
 using Autodesk.Revit.UI;
@@ -62,68 +63,50 @@ namespace Mdr.Revit.RevitAdapter.Extractors
                 return Array.Empty<ScheduleSyncRow>();
             }
 
-            TableData tableData = schedule.GetTableData();
-            TableSectionData body = tableData.GetSectionData(SectionType.Body);
-            if (body == null || body.NumberOfRows <= 0 || body.NumberOfColumns <= 0)
+            if (!schedule.Definition.IsItemized)
             {
-                return Array.Empty<ScheduleSyncRow>();
+                return new[]
+                {
+                    BuildErrorRow(
+                        "schedule_not_itemized",
+                        "Schedule is not itemized. Enable 'Itemize every instance' and retry."),
+                };
             }
 
-            TableSectionData headerSection = tableData.GetSectionData(SectionType.Header);
-            bool hasHeaderSection = headerSection != null &&
-                headerSection.NumberOfRows > 0 &&
-                headerSection.NumberOfColumns > 0;
-            int headerRow = hasHeaderSection
-                ? headerSection!.LastRowNumber
-                : body.FirstRowNumber;
-            int headerFirstCol = hasHeaderSection
-                ? headerSection!.FirstColumnNumber
-                : body.FirstColumnNumber;
-            int headerLastCol = hasHeaderSection
-                ? headerSection!.LastColumnNumber
-                : body.LastColumnNumber;
+            List<ScheduleColumnDefinition> columns = ResolveColumnsFromDefinition(schedule);
+            string anchorColumn = string.IsNullOrWhiteSpace(profile?.AnchorColumn)
+                ? "MDR_UNIQUE_ID"
+                : profile.AnchorColumn.Trim();
 
-            int bodyColumnCount = body.LastColumnNumber - body.FirstColumnNumber + 1;
-            List<string> headers = new List<string>(bodyColumnCount);
-            for (int offset = 0; offset < bodyColumnCount; offset++)
+            List<Element> elements = new FilteredElementCollector(_uiDocument.Document, schedule.Id)
+                .WhereElementIsNotElementType()
+                .ToElements()
+                .Where(x => x != null)
+                .OrderBy(x => x.Id.Value)
+                .ToList();
+
+            List<ScheduleSyncRow> rows = new List<ScheduleSyncRow>(elements.Count);
+            for (int i = 0; i < elements.Count; i++)
             {
-                int bodyCol = body.FirstColumnNumber + offset;
-                int headerCol = headerFirstCol + offset;
-
-                string header = string.Empty;
-                if (hasHeaderSection && headerCol >= headerFirstCol && headerCol <= headerLastCol)
-                {
-                    header = SafeGetCellText(schedule, SectionType.Header, headerRow, headerCol);
-                }
-
-                if (string.IsNullOrWhiteSpace(header))
-                {
-                    header = SafeGetCellText(schedule, SectionType.Body, body.FirstRowNumber, bodyCol);
-                }
-
-                if (string.IsNullOrWhiteSpace(header))
-                {
-                    header = "COL_" + (offset + 1);
-                }
-
-                headers.Add(header.Trim());
-            }
-
-            List<ScheduleSyncRow> rows = new List<ScheduleSyncRow>();
-            for (int row = body.FirstRowNumber; row <= body.LastRowNumber; row++)
-            {
+                Element element = elements[i];
                 ScheduleSyncRow data = new ScheduleSyncRow();
-                for (int col = body.FirstColumnNumber; col <= body.LastColumnNumber; col++)
+                for (int c = 0; c < columns.Count; c++)
                 {
-                    string key = headers[col - body.FirstColumnNumber];
-                    string value = SafeGetCellText(schedule, SectionType.Body, row, col);
-                    data.Cells[key] = value.Trim();
+                    ScheduleColumnDefinition column = columns[c];
+                    string value = _parameterAccessor.ReadValue(element, column.ParameterName);
+                    if (string.IsNullOrWhiteSpace(value) &&
+                        !string.Equals(column.ParameterName, column.Header, StringComparison.OrdinalIgnoreCase))
+                    {
+                        value = _parameterAccessor.ReadValue(element, column.Header);
+                    }
+
+                    data.Cells[column.Header] = (value ?? string.Empty).Trim();
                 }
 
-                string elementIdText = ResolveElementId(data.Cells);
+                string elementIdText = element.Id.Value.ToString(CultureInfo.InvariantCulture);
                 data.ElementId = elementIdText;
-                data.AnchorUniqueId = ResolveUniqueId(_uiDocument.Document, elementIdText, data.Cells, profile.AnchorColumn);
-                data.Cells[profile.AnchorColumn] = data.AnchorUniqueId;
+                data.AnchorUniqueId = (element.UniqueId ?? string.Empty).Trim();
+                data.Cells[anchorColumn] = data.AnchorUniqueId;
                 data.Cells["MDR_ELEMENT_ID"] = elementIdText;
 
                 if (string.IsNullOrWhiteSpace(data.AnchorUniqueId))
@@ -137,6 +120,14 @@ namespace Mdr.Revit.RevitAdapter.Extractors
                 }
 
                 rows.Add(data);
+            }
+
+            int aggregateRows = CountAggregateRows(schedule, rows.Count);
+            for (int i = 0; i < aggregateRows; i++)
+            {
+                rows.Add(BuildErrorRow(
+                    "aggregate_row_skipped",
+                    "A schedule row could not be mapped to a single element and was skipped."));
             }
 
             return rows;
@@ -360,24 +351,140 @@ namespace Mdr.Revit.RevitAdapter.Extractors
                 (x.Name ?? string.Empty).IndexOf(normalizedName, StringComparison.OrdinalIgnoreCase) >= 0);
         }
 
-        private static string SafeGetCellText(
-            ViewSchedule schedule,
-            SectionType sectionType,
-            int row,
-            int column)
+        private static List<ScheduleColumnDefinition> ResolveColumnsFromDefinition(ViewSchedule schedule)
+        {
+            List<string> headers = new List<string>();
+            List<string> parameterNames = new List<string>();
+            IList<ScheduleFieldId> fieldOrder = schedule.Definition.GetFieldOrder();
+            for (int i = 0; i < fieldOrder.Count; i++)
+            {
+                ScheduleField field = schedule.Definition.GetField(fieldOrder[i]);
+                if (field == null || field.IsHidden)
+                {
+                    continue;
+                }
+
+                string heading = NormalizeHeaderLabel(field.ColumnHeading);
+                string parameterName = ResolveFieldParameterName(field, heading);
+                headers.Add(heading);
+                parameterNames.Add(parameterName);
+            }
+
+            IReadOnlyList<string> uniqueHeaders = BuildUniqueHeaders(headers);
+            List<ScheduleColumnDefinition> columns = new List<ScheduleColumnDefinition>(uniqueHeaders.Count);
+            for (int i = 0; i < uniqueHeaders.Count; i++)
+            {
+                columns.Add(new ScheduleColumnDefinition
+                {
+                    Header = uniqueHeaders[i],
+                    ParameterName = parameterNames[i],
+                });
+            }
+
+            return columns;
+        }
+
+        internal static IReadOnlyList<string> BuildUniqueHeaders(IReadOnlyList<string> rawHeaders)
+        {
+            List<string> unique = new List<string>();
+            if (rawHeaders == null || rawHeaders.Count == 0)
+            {
+                return unique;
+            }
+
+            Dictionary<string, int> counters = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            for (int i = 0; i < rawHeaders.Count; i++)
+            {
+                string normalized = NormalizeHeaderLabel(rawHeaders[i]);
+                if (string.IsNullOrWhiteSpace(normalized))
+                {
+                    normalized = "COL_" + (i + 1).ToString(CultureInfo.InvariantCulture);
+                }
+
+                if (!counters.TryGetValue(normalized, out int count))
+                {
+                    counters[normalized] = 1;
+                    unique.Add(normalized);
+                    continue;
+                }
+
+                count++;
+                counters[normalized] = count;
+                unique.Add(normalized + "_" + count.ToString(CultureInfo.InvariantCulture));
+            }
+
+            return unique;
+        }
+
+        private static string ResolveFieldParameterName(ScheduleField field, string fallback)
+        {
+            string value = string.Empty;
+            try
+            {
+                value = NormalizeHeaderLabel(field.GetName());
+            }
+            catch
+            {
+                value = string.Empty;
+            }
+
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return fallback;
+            }
+
+            return value;
+        }
+
+        private static string NormalizeHeaderLabel(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return string.Empty;
+            }
+
+            string[] tokens = value
+                .Split(new[] { ' ', '\t', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+            return string.Join(" ", tokens).Trim();
+        }
+
+        private static int CountAggregateRows(ViewSchedule schedule, int elementRows)
         {
             try
             {
-                return schedule.GetCellText(sectionType, row, column) ?? string.Empty;
+                TableData table = schedule.GetTableData();
+                TableSectionData body = table.GetSectionData(SectionType.Body);
+                if (body == null || body.NumberOfRows <= 0)
+                {
+                    return 0;
+                }
+
+                int bodyRows = body.LastRowNumber - body.FirstRowNumber + 1;
+                if (bodyRows <= elementRows)
+                {
+                    return 0;
+                }
+
+                return bodyRows - elementRows;
             }
-            catch (Autodesk.Revit.Exceptions.ArgumentException)
+            catch
             {
-                return string.Empty;
+                return 0;
             }
-            catch (System.ArgumentException)
+        }
+
+        private static ScheduleSyncRow BuildErrorRow(string code, string message)
+        {
+            ScheduleSyncRow row = new ScheduleSyncRow
             {
-                return string.Empty;
-            }
+                ChangeState = ScheduleSyncStates.Error,
+            };
+            row.Errors.Add(new ScheduleSyncError
+            {
+                Code = code ?? string.Empty,
+                Message = message ?? string.Empty,
+            });
+            return row;
         }
 
         private static List<ViewSchedule> ResolveSchedules(Document document)
@@ -389,51 +496,11 @@ namespace Mdr.Revit.RevitAdapter.Extractors
                 .ToList();
         }
 
-        private static string ResolveElementId(IReadOnlyDictionary<string, string> cells)
+        private sealed class ScheduleColumnDefinition
         {
-            string[] candidateKeys =
-            {
-                "Element Id",
-                "ElementID",
-                "ID",
-                "ElementId",
-                "MDR_ELEMENT_ID",
-            };
+            public string Header { get; set; } = string.Empty;
 
-            for (int i = 0; i < candidateKeys.Length; i++)
-            {
-                if (cells.TryGetValue(candidateKeys[i], out string value) && !string.IsNullOrWhiteSpace(value))
-                {
-                    return value.Trim();
-                }
-            }
-
-            return string.Empty;
-        }
-
-        private static string ResolveUniqueId(
-            Document document,
-            string elementIdText,
-            IReadOnlyDictionary<string, string> cells,
-            string anchorColumn)
-        {
-            if (int.TryParse(elementIdText, out int elementId))
-            {
-                Element? element = document.GetElement(new ElementId(elementId));
-                if (element != null && !string.IsNullOrWhiteSpace(element.UniqueId))
-                {
-                    return element.UniqueId;
-                }
-            }
-
-            if (!string.IsNullOrWhiteSpace(anchorColumn) &&
-                cells.TryGetValue(anchorColumn, out string anchorValue) &&
-                !string.IsNullOrWhiteSpace(anchorValue))
-            {
-                return anchorValue.Trim();
-            }
-
-            return string.Empty;
+            public string ParameterName { get; set; } = string.Empty;
         }
     }
 }

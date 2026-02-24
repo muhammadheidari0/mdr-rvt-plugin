@@ -135,6 +135,13 @@ namespace Mdr.Revit.Core.Models
 
         public int ExportedRows { get; set; }
 
+        public int SkippedRows { get; set; }
+
+        public Dictionary<string, int> SkippedByReason { get; } =
+            new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+
+        public List<string> Warnings { get; } = new List<string>();
+
         public GoogleSheetWriteResult WriteResult { get; set; } = new GoogleSheetWriteResult();
 
         public ScheduleSyncDiffResult DiffResult { get; set; } = new ScheduleSyncDiffResult();
