@@ -13,6 +13,7 @@ namespace Mdr.Revit.Client.Auth
     public sealed class GoogleOAuthDesktopFlow
     {
         private const string RedirectHost = "http://127.0.0.1";
+        private const int CallbackTimeoutSeconds = 180;
         private readonly HttpClient _httpClient;
 
         public GoogleOAuthDesktopFlow()
@@ -63,7 +64,7 @@ namespace Mdr.Revit.Client.Auth
                     UseShellExecute = true,
                 });
 
-                HttpListenerContext context = await listener.GetContextAsync().ConfigureAwait(false);
+                HttpListenerContext context = await WaitForCallbackAsync(listener, cancellationToken).ConfigureAwait(false);
                 string code = context.Request.QueryString["code"] ?? string.Empty;
                 string callbackState = context.Request.QueryString["state"] ?? string.Empty;
                 if (!string.Equals(state, callbackState, StringComparison.Ordinal))
@@ -126,6 +127,36 @@ namespace Mdr.Revit.Client.Auth
         {
             Random random = new Random();
             return random.Next(41000, 48000);
+        }
+
+        private static async Task<HttpListenerContext> WaitForCallbackAsync(
+            HttpListener listener,
+            CancellationToken cancellationToken)
+        {
+            if (listener == null)
+            {
+                throw new ArgumentNullException(nameof(listener));
+            }
+
+            using CancellationTokenSource timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            timeout.CancelAfter(TimeSpan.FromSeconds(CallbackTimeoutSeconds));
+
+            Task<HttpListenerContext> contextTask = listener.GetContextAsync();
+            Task delayTask = Task.Delay(Timeout.InfiniteTimeSpan, timeout.Token);
+            Task completed = await Task.WhenAny(contextTask, delayTask).ConfigureAwait(false);
+            if (completed == contextTask)
+            {
+                return await contextTask.ConfigureAwait(false);
+            }
+
+            if (cancellationToken.IsCancellationRequested)
+            {
+                throw new OperationCanceledException(cancellationToken);
+            }
+
+            throw new TimeoutException(
+                "Google OAuth callback timed out after " + CallbackTimeoutSeconds +
+                " seconds. Complete authorization in browser and ensure local callback is not blocked.");
         }
 
         private sealed class GoogleTokenResponse

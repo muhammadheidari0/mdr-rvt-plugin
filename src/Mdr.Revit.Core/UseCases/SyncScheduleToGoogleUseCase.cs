@@ -35,8 +35,7 @@ namespace Mdr.Revit.Core.UseCases
 
             var rows = _revitScheduleSyncAdapter.ExtractRows(scheduleName, request.Profile);
             GoogleSheetWriteResult write = await _googleSheetsClient
-                .WriteRowsAsync(request.Profile, rows, cancellationToken)
-                .ConfigureAwait(false);
+                .WriteRowsAsync(request.Profile, rows, cancellationToken);
 
             return new GoogleScheduleSyncResult
             {

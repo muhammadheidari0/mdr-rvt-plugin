@@ -142,50 +142,18 @@ namespace Mdr.Revit.Addin.UI
 
             syncButton.Click += (_, _) =>
             {
-                try
-                {
-                    ApplyControlValues(
-                        directionCombo,
-                        scheduleCombo,
-                        spreadsheetTextBox,
-                        worksheetTextBox,
-                        anchorTextBox,
-                        previewCheckBox,
-                        authorizeCheckBox);
-
-                    if (string.Equals(ViewModel.Direction, GoogleSyncDirections.Import, StringComparison.OrdinalIgnoreCase))
-                    {
-                        GoogleScheduleSyncResult previewResult = RunImport(previewOnly: true);
-                        DiffViewerWindow previewWindow = new DiffViewerWindow();
-                        previewWindow.SetDiff(previewResult.DiffResult);
-
-                        bool shouldApply = previewWindow.ShowDialog(allowApply: !ViewModel.PreviewOnly);
-                        if (ViewModel.PreviewOnly || !shouldApply)
-                        {
-                            ShowSyncSummary(previewResult);
-                            return;
-                        }
-
-                        GoogleScheduleSyncResult applyResult = RunImport(previewOnly: false);
-                        ShowSyncSummary(applyResult);
-                        window.DialogResult = true;
-                        window.Close();
-                        return;
-                    }
-
-                    GoogleScheduleSyncResult exportResult = SyncAsync(CancellationToken.None).GetAwaiter().GetResult();
-                    ShowSyncSummary(exportResult);
-                    window.DialogResult = true;
-                    window.Close();
-                }
-                catch (Exception ex)
-                {
-                    MessageBox.Show(
-                        ex.Message,
-                        "Google Sync Failed",
-                        MessageBoxButton.OK,
-                        MessageBoxImage.Error);
-                }
+                _ = RunSyncAsync(
+                    window,
+                    directionCombo,
+                    scheduleCombo,
+                    spreadsheetTextBox,
+                    worksheetTextBox,
+                    anchorTextBox,
+                    previewCheckBox,
+                    authorizeCheckBox,
+                    refreshButton,
+                    syncButton,
+                    closeButton);
             };
 
             closeButton.Click += (_, _) =>
@@ -386,12 +354,92 @@ namespace Mdr.Revit.Addin.UI
             ViewModel.AuthorizeInteractively = authorizeCheckBox.IsChecked ?? false;
         }
 
-        private GoogleScheduleSyncResult RunImport(bool previewOnly)
+        private async Task RunSyncAsync(
+            Window window,
+            ComboBox directionCombo,
+            ComboBox scheduleCombo,
+            TextBox spreadsheetTextBox,
+            TextBox worksheetTextBox,
+            TextBox anchorTextBox,
+            CheckBox previewCheckBox,
+            CheckBox authorizeCheckBox,
+            Button refreshButton,
+            Button syncButton,
+            Button closeButton)
+        {
+            string originalSyncText = syncButton.Content?.ToString() ?? "Sync to Google";
+            try
+            {
+                syncButton.IsEnabled = false;
+                refreshButton.IsEnabled = false;
+                closeButton.IsEnabled = false;
+                syncButton.Content = "Syncing...";
+
+                ApplyControlValues(
+                    directionCombo,
+                    scheduleCombo,
+                    spreadsheetTextBox,
+                    worksheetTextBox,
+                    anchorTextBox,
+                    previewCheckBox,
+                    authorizeCheckBox);
+
+                if (string.Equals(ViewModel.Direction, GoogleSyncDirections.Import, StringComparison.OrdinalIgnoreCase))
+                {
+                    GoogleScheduleSyncResult previewResult = await RunImportAsync(previewOnly: true).ConfigureAwait(true);
+                    DiffViewerWindow previewWindow = new DiffViewerWindow();
+                    previewWindow.SetDiff(previewResult.DiffResult);
+
+                    bool shouldApply = previewWindow.ShowDialog(allowApply: !ViewModel.PreviewOnly);
+                    if (ViewModel.PreviewOnly || !shouldApply)
+                    {
+                        ShowSyncSummary(previewResult);
+                        return;
+                    }
+
+                    GoogleScheduleSyncResult applyResult = await RunImportAsync(previewOnly: false).ConfigureAwait(true);
+                    ShowSyncSummary(applyResult);
+                    window.DialogResult = true;
+                    window.Close();
+                    return;
+                }
+
+                GoogleScheduleSyncResult exportResult = await SyncAsync(CancellationToken.None).ConfigureAwait(true);
+                ShowSyncSummary(exportResult);
+                window.DialogResult = true;
+                window.Close();
+            }
+            catch (TimeoutException ex)
+            {
+                MessageBox.Show(
+                    ex.Message,
+                    "Google OAuth Timeout",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    ex.Message,
+                    "Google Sync Failed",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+            }
+            finally
+            {
+                syncButton.Content = originalSyncText;
+                syncButton.IsEnabled = true;
+                refreshButton.IsEnabled = true;
+                closeButton.IsEnabled = true;
+            }
+        }
+
+        private async Task<GoogleScheduleSyncResult> RunImportAsync(bool previewOnly)
         {
             GoogleSyncFromAppRequest request = ViewModel.BuildRequest();
             request.Direction = GoogleSyncDirections.Import;
             request.PreviewOnly = previewOnly;
-            return SyncAsync(request, CancellationToken.None).GetAwaiter().GetResult();
+            return await SyncAsync(request, CancellationToken.None).ConfigureAwait(true);
         }
 
         private static void ShowSyncSummary(GoogleScheduleSyncResult result)

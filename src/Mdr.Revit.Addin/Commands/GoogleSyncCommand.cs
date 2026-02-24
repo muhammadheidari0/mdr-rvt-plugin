@@ -56,13 +56,14 @@ namespace Mdr.Revit.Addin.Commands
                 throw new ArgumentNullException(nameof(request));
             }
 
+            NormalizeRequest(request);
             ApplyEmbeddedCredentialsFallback(request);
             ValidateRequest(request);
             _logger.Info("Starting Google Sheets sync direction=" + request.Direction);
 
             string tokenFile = ResolveTokenFilePath(request.TokenStorePath);
             GoogleTokenStore tokenStore = new GoogleTokenStore(tokenFile);
-            await EnsureTokenMaterializedAsync(request, tokenStore, cancellationToken).ConfigureAwait(false);
+            await EnsureTokenMaterializedAsync(request, tokenStore, cancellationToken);
 
             using (GoogleDesktopTokenProvider tokenProvider = new GoogleDesktopTokenProvider(
                 request.GoogleClientId,
@@ -82,11 +83,18 @@ namespace Mdr.Revit.Addin.Commands
                 if (string.Equals(request.Direction, GoogleSyncDirections.Export, StringComparison.OrdinalIgnoreCase))
                 {
                     SyncScheduleToGoogleUseCase useCase = new SyncScheduleToGoogleUseCase(googleClient, _revitScheduleSyncAdapter);
-                    return await useCase.ExecuteAsync(syncRequest, cancellationToken).ConfigureAwait(false);
+                    GoogleScheduleSyncResult result = await useCase.ExecuteAsync(syncRequest, cancellationToken);
+                    _logger.Info("Google Sheets export completed rows=" + result.ExportedRows);
+                    return result;
                 }
 
                 SyncScheduleFromGoogleUseCase fromUseCase = new SyncScheduleFromGoogleUseCase(googleClient, _revitScheduleSyncAdapter);
-                return await fromUseCase.ExecuteAsync(syncRequest, cancellationToken).ConfigureAwait(false);
+                GoogleScheduleSyncResult importResult = await fromUseCase.ExecuteAsync(syncRequest, cancellationToken);
+                _logger.Info(
+                    "Google Sheets import completed changed=" + importResult.DiffResult.ChangedRowsCount +
+                    " errors=" + importResult.DiffResult.ErrorRowsCount +
+                    " applied=" + importResult.ApplyResult.AppliedCount);
+                return importResult;
             }
         }
 
@@ -128,8 +136,7 @@ namespace Mdr.Revit.Addin.Commands
             {
                 GoogleOAuthDesktopFlow flow = new GoogleOAuthDesktopFlow();
                 GoogleOAuthToken interactive = await flow
-                    .AuthorizeAsync(request.GoogleClientId, request.GoogleClientSecret, cancellationToken)
-                    .ConfigureAwait(false);
+                    .AuthorizeAsync(request.GoogleClientId, request.GoogleClientSecret, cancellationToken);
 
                 token.AccessToken = interactive.AccessToken;
                 token.RefreshToken = interactive.RefreshToken;
@@ -137,6 +144,40 @@ namespace Mdr.Revit.Addin.Commands
             }
 
             tokenStore.Save(token);
+        }
+
+        private static void NormalizeRequest(GoogleSyncCommandRequest request)
+        {
+            request.SpreadsheetId = NormalizeSpreadsheetId(request.SpreadsheetId);
+            request.WorksheetName = (request.WorksheetName ?? string.Empty).Trim();
+            request.AnchorColumn = string.IsNullOrWhiteSpace(request.AnchorColumn)
+                ? "MDR_UNIQUE_ID"
+                : request.AnchorColumn.Trim();
+        }
+
+        private static string NormalizeSpreadsheetId(string value)
+        {
+            string input = (value ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(input))
+            {
+                return string.Empty;
+            }
+
+            const string marker = "/spreadsheets/d/";
+            int markerIndex = input.IndexOf(marker, StringComparison.OrdinalIgnoreCase);
+            if (markerIndex < 0)
+            {
+                return input;
+            }
+
+            string idPart = input.Substring(markerIndex + marker.Length);
+            int endIndex = idPart.IndexOfAny(new[] { '/', '?', '#', '&' });
+            if (endIndex >= 0)
+            {
+                idPart = idPart.Substring(0, endIndex);
+            }
+
+            return idPart.Trim();
         }
 
         private static void ValidateRequest(GoogleSyncCommandRequest request)

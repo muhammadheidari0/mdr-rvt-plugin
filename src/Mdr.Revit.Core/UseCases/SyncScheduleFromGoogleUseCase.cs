@@ -34,8 +34,7 @@ namespace Mdr.Revit.Core.UseCases
             }
 
             GoogleSheetReadResult sheetRows = await _googleSheetsClient
-                .ReadRowsAsync(request.Profile, cancellationToken)
-                .ConfigureAwait(false);
+                .ReadRowsAsync(request.Profile, cancellationToken);
 
             ScheduleSyncDiffResult diff = _revitScheduleSyncAdapter.BuildDiff(sheetRows.Rows, request.Profile);
             GoogleScheduleSyncResult result = new GoogleScheduleSyncResult

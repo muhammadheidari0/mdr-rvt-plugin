@@ -38,7 +38,7 @@ namespace Mdr.Revit.Addin.Tests
             {
                 Direction = "IMPORT",
                 SelectedScheduleName = "MTO Main",
-                SpreadsheetId = "spreadsheet-1",
+                SpreadsheetId = "https://docs.google.com/spreadsheets/d/spreadsheet-1/edit?usp=sharing",
                 WorksheetName = "SheetA",
                 AnchorColumn = "MDR_UNIQUE_ID",
                 AuthorizeInteractively = true,
@@ -57,6 +57,16 @@ namespace Mdr.Revit.Addin.Tests
             Assert.True(request.AuthorizeInteractively);
             Assert.True(request.PreviewOnly);
             Assert.Contains(request.ColumnMappings, x => x.SheetColumn == "MDR_UNIQUE_ID");
+        }
+
+        [Theory]
+        [InlineData("spreadsheet-only-id", "spreadsheet-only-id")]
+        [InlineData(" https://docs.google.com/spreadsheets/d/AbCDef_123-XYZ/edit#gid=0 ", "AbCDef_123-XYZ")]
+        [InlineData("https://docs.google.com/spreadsheets/d/AbCDef_123-XYZ", "AbCDef_123-XYZ")]
+        public void NormalizeSpreadsheetId_HandlesIdAndUrl(string input, string expected)
+        {
+            string actual = GoogleSyncWindowViewModel.NormalizeSpreadsheetId(input);
+            Assert.Equal(expected, actual);
         }
     }
 }

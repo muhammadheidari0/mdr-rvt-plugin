@@ -156,7 +156,7 @@ namespace Mdr.Revit.Addin.UI
             {
                 Direction = NormalizeDirection(Direction),
                 ScheduleName = (SelectedScheduleName ?? string.Empty).Trim(),
-                SpreadsheetId = (SpreadsheetId ?? string.Empty).Trim(),
+                SpreadsheetId = NormalizeSpreadsheetId(SpreadsheetId),
                 WorksheetName = (WorksheetName ?? string.Empty).Trim(),
                 AnchorColumn = string.IsNullOrWhiteSpace(AnchorColumn) ? "MDR_UNIQUE_ID" : AnchorColumn.Trim(),
                 AuthorizeInteractively = AuthorizeInteractively,
@@ -190,6 +190,31 @@ namespace Mdr.Revit.Addin.UI
             }
 
             return GoogleSyncDirections.Export;
+        }
+
+        internal static string NormalizeSpreadsheetId(string value)
+        {
+            string input = (value ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(input))
+            {
+                return string.Empty;
+            }
+
+            const string marker = "/spreadsheets/d/";
+            int markerIndex = input.IndexOf(marker, StringComparison.OrdinalIgnoreCase);
+            if (markerIndex < 0)
+            {
+                return input;
+            }
+
+            string idPart = input.Substring(markerIndex + marker.Length);
+            int endIndex = idPart.IndexOfAny(new[] { '/', '?', '#', '&' });
+            if (endIndex >= 0)
+            {
+                idPart = idPart.Substring(0, endIndex);
+            }
+
+            return idPart.Trim();
         }
     }
 
