@@ -32,6 +32,45 @@ namespace Mdr.Revit.Addin.Tests
         }
 
         [Fact]
+        public void SetColumnMappings_UsesScheduleDefinitionMappingsAndKeepsProtectedSystemColumns()
+        {
+            GoogleSyncWindowViewModel vm = new GoogleSyncWindowViewModel();
+
+            vm.SetColumnMappings(new[]
+            {
+                new GoogleSheetColumnMapping
+                {
+                    SheetColumn = "Room Name",
+                    RevitParameter = "Name",
+                    IsEditable = true,
+                },
+                new GoogleSheetColumnMapping
+                {
+                    SheetColumn = "Room Number",
+                    RevitParameter = "Number",
+                    IsEditable = true,
+                },
+            });
+            vm.ApplyProtectedColumns(new[] { "MDR_UNIQUE_ID", "MDR_ELEMENT_ID" });
+
+            Assert.Contains(vm.ColumnMappings, x => x.SheetColumn == "Room Name" && x.RevitParameter == "Name");
+            Assert.Contains(vm.ColumnMappings, x => x.SheetColumn == "Room Number" && x.RevitParameter == "Number");
+            Assert.Contains(vm.ColumnMappings, x => x.SheetColumn == "MDR_UNIQUE_ID" && !x.IsEditable);
+            Assert.Contains(vm.ColumnMappings, x => x.SheetColumn == "MDR_ELEMENT_ID" && !x.IsEditable);
+        }
+
+        [Fact]
+        public void SetColumnMappings_WhenEmpty_FallsBackToDefaultSystemMappings()
+        {
+            GoogleSyncWindowViewModel vm = new GoogleSyncWindowViewModel();
+
+            vm.SetColumnMappings(System.Array.Empty<GoogleSheetColumnMapping>());
+
+            Assert.Contains(vm.ColumnMappings, x => x.SheetColumn == "MDR_UNIQUE_ID");
+            Assert.Contains(vm.ColumnMappings, x => x.SheetColumn == "MDR_ELEMENT_ID");
+        }
+
+        [Fact]
         public void BuildRequest_MapsFieldsAndMappings()
         {
             GoogleSyncWindowViewModel vm = new GoogleSyncWindowViewModel

@@ -210,6 +210,26 @@ namespace Mdr.Revit.Core.Tests
                 return new[] { "Schedule A" };
             }
 
+            public IReadOnlyList<GoogleSheetColumnMapping> GetScheduleColumnMappings(string scheduleName)
+            {
+                _ = scheduleName;
+                return new[]
+                {
+                    new GoogleSheetColumnMapping
+                    {
+                        SheetColumn = "MDR_UNIQUE_ID",
+                        RevitParameter = "MDR_UNIQUE_ID",
+                        IsEditable = false,
+                    },
+                    new GoogleSheetColumnMapping
+                    {
+                        SheetColumn = "MDR_ELEMENT_ID",
+                        RevitParameter = "MDR_ELEMENT_ID",
+                        IsEditable = false,
+                    },
+                };
+            }
+
             public IReadOnlyList<ScheduleSyncRow> ExtractRows(string scheduleName, GoogleSheetSyncProfile profile)
             {
                 _ = scheduleName;

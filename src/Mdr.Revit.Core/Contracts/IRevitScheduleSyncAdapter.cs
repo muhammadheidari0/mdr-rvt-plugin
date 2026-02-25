@@ -7,6 +7,8 @@ namespace Mdr.Revit.Core.Contracts
     {
         IReadOnlyList<string> GetAvailableScheduleNames();
 
+        IReadOnlyList<GoogleSheetColumnMapping> GetScheduleColumnMappings(string scheduleName);
+
         IReadOnlyList<ScheduleSyncRow> ExtractRows(
             string scheduleName,
             GoogleSheetSyncProfile profile);

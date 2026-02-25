@@ -128,6 +128,48 @@ namespace Mdr.Revit.Addin.UI
             }
         }
 
+        public void SetColumnMappings(IReadOnlyList<GoogleSheetColumnMapping> mappings)
+        {
+            _columnMappings.Clear();
+
+            HashSet<string> seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            if (mappings != null)
+            {
+                for (int i = 0; i < mappings.Count; i++)
+                {
+                    GoogleSheetColumnMapping item = mappings[i];
+                    if (item == null)
+                    {
+                        continue;
+                    }
+
+                    string sheetColumn = (item.SheetColumn ?? string.Empty).Trim();
+                    string revitParameter = (item.RevitParameter ?? string.Empty).Trim();
+                    if (string.IsNullOrWhiteSpace(sheetColumn) || string.IsNullOrWhiteSpace(revitParameter))
+                    {
+                        continue;
+                    }
+
+                    if (!seen.Add(sheetColumn))
+                    {
+                        continue;
+                    }
+
+                    _columnMappings.Add(new GoogleSyncMappingItem
+                    {
+                        SheetColumn = sheetColumn,
+                        RevitParameter = revitParameter,
+                        IsEditable = item.IsEditable,
+                    });
+                }
+            }
+
+            if (_columnMappings.Count == 0)
+            {
+                EnsureDefaultMappings();
+            }
+        }
+
         public void EnsureDefaultMappings()
         {
             if (_columnMappings.Count > 0)

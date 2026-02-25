@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -11,6 +13,7 @@ namespace Mdr.Revit.Addin.UI
     public sealed class GoogleSyncWindow
     {
         private readonly App _app;
+        private IReadOnlyList<string> _protectedColumns = Array.Empty<string>();
 
         public GoogleSyncWindowViewModel ViewModel { get; }
 
@@ -25,6 +28,7 @@ namespace Mdr.Revit.Addin.UI
             ViewModel = new GoogleSyncWindowViewModel();
             ReloadDefaultsFromConfig();
             ReloadAvailableSchedules();
+            ReloadMappingsForSelectedSchedule();
         }
 
         public Task<GoogleScheduleSyncResult> SyncAsync(
@@ -51,7 +55,8 @@ namespace Mdr.Revit.Addin.UI
                 config.Google.DefaultSpreadsheetId,
                 config.Google.DefaultWorksheetName,
                 "MDR_UNIQUE_ID");
-            ViewModel.ApplyProtectedColumns(config.Google.ProtectedSystemColumns);
+            _protectedColumns = config.Google.ProtectedSystemColumns.ToArray();
+            ViewModel.ApplyProtectedColumns(_protectedColumns);
         }
 
         public bool? ShowDialog()
@@ -138,6 +143,14 @@ namespace Mdr.Revit.Addin.UI
                 scheduleCombo.ItemsSource = null;
                 scheduleCombo.ItemsSource = ViewModel.ScheduleNames;
                 scheduleCombo.SelectedItem = ViewModel.SelectedScheduleName;
+                ReloadMappingsForSelectedSchedule();
+                RefreshMappingsGrid(mappingsGrid);
+            };
+            scheduleCombo.SelectionChanged += (_, _) =>
+            {
+                ViewModel.SelectedScheduleName = scheduleCombo.SelectedItem as string ?? string.Empty;
+                ReloadMappingsForSelectedSchedule();
+                RefreshMappingsGrid(mappingsGrid);
             };
 
             syncButton.Click += (_, _) =>
@@ -334,6 +347,20 @@ namespace Mdr.Revit.Addin.UI
             Grid.SetColumn(panel, column);
             Grid.SetColumnSpan(panel, columnSpan);
             return panel;
+        }
+
+        private void ReloadMappingsForSelectedSchedule()
+        {
+            IReadOnlyList<GoogleSheetColumnMapping> mappings =
+                _app.GetScheduleColumnMappingsForGoogleSync(ViewModel.SelectedScheduleName);
+            ViewModel.SetColumnMappings(mappings);
+            ViewModel.ApplyProtectedColumns(_protectedColumns);
+        }
+
+        private void RefreshMappingsGrid(DataGrid mappingsGrid)
+        {
+            mappingsGrid.ItemsSource = null;
+            mappingsGrid.ItemsSource = ViewModel.ColumnMappings;
         }
 
         private void ApplyControlValues(

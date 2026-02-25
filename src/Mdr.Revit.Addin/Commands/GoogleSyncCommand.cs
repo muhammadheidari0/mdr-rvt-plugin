@@ -47,6 +47,11 @@ namespace Mdr.Revit.Addin.Commands
             return _revitScheduleSyncAdapter.GetAvailableScheduleNames();
         }
 
+        public IReadOnlyList<GoogleSheetColumnMapping> GetScheduleColumnMappings(string scheduleName)
+        {
+            return _revitScheduleSyncAdapter.GetScheduleColumnMappings(scheduleName ?? string.Empty);
+        }
+
         public async Task<GoogleScheduleSyncResult> ExecuteAsync(
             GoogleSyncCommandRequest request,
             CancellationToken cancellationToken)
@@ -391,6 +396,12 @@ namespace Mdr.Revit.Addin.Commands
             _ = scheduleName;
             _ = profile;
             return Array.Empty<ScheduleSyncRow>();
+        }
+
+        public IReadOnlyList<GoogleSheetColumnMapping> GetScheduleColumnMappings(string scheduleName)
+        {
+            _ = scheduleName;
+            return Array.Empty<GoogleSheetColumnMapping>();
         }
 
         public ScheduleSyncDiffResult BuildDiff(IReadOnlyList<ScheduleSyncRow> incomingRows, GoogleSheetSyncProfile profile)

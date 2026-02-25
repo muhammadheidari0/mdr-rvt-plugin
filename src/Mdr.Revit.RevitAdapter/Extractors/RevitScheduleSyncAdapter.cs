@@ -48,6 +48,42 @@ namespace Mdr.Revit.RevitAdapter.Extractors
                 .ToList();
         }
 
+        public IReadOnlyList<GoogleSheetColumnMapping> GetScheduleColumnMappings(string scheduleName)
+        {
+            if (_uiDocument?.Document == null)
+            {
+                return Array.Empty<GoogleSheetColumnMapping>();
+            }
+
+            ViewSchedule? schedule = ResolveSchedule(_uiDocument.Document, scheduleName);
+            if (schedule == null)
+            {
+                return Array.Empty<GoogleSheetColumnMapping>();
+            }
+
+            List<ScheduleColumnDefinition> columns = ResolveColumnsFromDefinition(schedule);
+            List<GoogleSheetColumnMapping> mappings = new List<GoogleSheetColumnMapping>(columns.Count);
+            for (int i = 0; i < columns.Count; i++)
+            {
+                ScheduleColumnDefinition column = columns[i];
+                if (string.IsNullOrWhiteSpace(column.Header))
+                {
+                    continue;
+                }
+
+                mappings.Add(new GoogleSheetColumnMapping
+                {
+                    SheetColumn = column.Header,
+                    RevitParameter = string.IsNullOrWhiteSpace(column.ParameterName)
+                        ? column.Header
+                        : column.ParameterName,
+                    IsEditable = true,
+                });
+            }
+
+            return mappings;
+        }
+
         public IReadOnlyList<ScheduleSyncRow> ExtractRows(
             string scheduleName,
             GoogleSheetSyncProfile profile)

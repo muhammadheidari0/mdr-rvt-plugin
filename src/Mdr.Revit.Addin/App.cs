@@ -265,6 +265,11 @@ namespace Mdr.Revit.Addin
             return _googleSyncCommand.GetAvailableSchedules();
         }
 
+        public IReadOnlyList<GoogleSheetColumnMapping> GetScheduleColumnMappingsForGoogleSync(string scheduleName)
+        {
+            return _googleSyncCommand.GetScheduleColumnMappings(scheduleName);
+        }
+
         public SmartNumberingResult ApplySmartNumbering(SmartNumberingFromAppRequest request)
         {
             if (request == null)
