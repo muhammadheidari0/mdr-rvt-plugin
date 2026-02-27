@@ -33,6 +33,7 @@
     <None Update="Resources\Icons\*.png">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+    <EmbeddedResource Include="Resources\Icons\*.png" />
   </ItemGroup>
 
   <ItemGroup>

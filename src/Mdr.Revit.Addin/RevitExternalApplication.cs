@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Globalization;
 using Autodesk.Revit.UI;
 using Mdr.Revit.Addin.Commands;
 using System.Windows.Media;
@@ -283,6 +284,12 @@ namespace Mdr.Revit.Addin
 
             try
             {
+                ImageSource? embedded = TryLoadEmbeddedIcon(relativePath);
+                if (embedded != null)
+                {
+                    return embedded;
+                }
+
                 string? pluginDirectory = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
                 if (string.IsNullOrWhiteSpace(pluginDirectory))
                 {
@@ -307,6 +314,39 @@ namespace Mdr.Revit.Addin
             catch (Exception ex)
             {
                 WriteBootstrapLog("Icon load failed for " + relativePath, ex);
+                return null;
+            }
+        }
+
+        private static ImageSource? TryLoadEmbeddedIcon(string relativePath)
+        {
+            try
+            {
+                Assembly assembly = Assembly.GetExecutingAssembly();
+                string normalized = relativePath.Replace('/', '.').Replace('\\', '.');
+                string resourceName = string.Format(
+                    CultureInfo.InvariantCulture,
+                    "{0}.{1}",
+                    assembly.GetName().Name,
+                    normalized);
+
+                using Stream? stream = assembly.GetManifestResourceStream(resourceName);
+                if (stream == null)
+                {
+                    return null;
+                }
+
+                BitmapImage bitmap = new BitmapImage();
+                bitmap.BeginInit();
+                bitmap.StreamSource = stream;
+                bitmap.CacheOption = BitmapCacheOption.OnLoad;
+                bitmap.EndInit();
+                bitmap.Freeze();
+                return bitmap;
+            }
+            catch (Exception ex)
+            {
+                WriteBootstrapLog("Embedded icon load failed for " + relativePath, ex);
                 return null;
             }
         }
