@@ -82,6 +82,31 @@ namespace Mdr.Revit.Addin.UI
                 Text = ViewModel.SequenceWidth.ToString(CultureInfo.InvariantCulture),
             };
 
+            TextBox categoryTextBox = new TextBox
+            {
+                Width = 180,
+                Margin = new Thickness(8, 0, 16, 0),
+                Text = ViewModel.CategoryBuiltInName,
+            };
+
+            ComboBox blockCombo = new ComboBox
+            {
+                Width = 220,
+                Margin = new Thickness(8, 0, 16, 0),
+                IsEditable = true,
+                ItemsSource = ViewModel.BlockOptions,
+                Text = ViewModel.SelectedBlock,
+            };
+
+            ComboBox levelCombo = new ComboBox
+            {
+                Width = 220,
+                Margin = new Thickness(8, 0, 0, 0),
+                IsEditable = true,
+                ItemsSource = ViewModel.LevelOptions,
+                Text = ViewModel.SelectedLevel,
+            };
+
             TextBlock statusText = new TextBlock
             {
                 Margin = new Thickness(0, 0, 0, 10),
@@ -120,11 +145,17 @@ namespace Mdr.Revit.Addin.UI
                 targetsTextBox,
                 startAtTextBox,
                 widthTextBox,
+                categoryTextBox,
+                blockCombo,
+                levelCombo,
                 statusText,
                 previewGrid,
                 previewButton,
                 applyButton,
-                closeButton);
+                closeButton,
+                out FrameworkElement formulaPanel,
+                out FrameworkElement optionsRow,
+                out FrameworkElement arcaPanel);
             window.Content = root;
 
             bool previewDirty = true;
@@ -141,6 +172,38 @@ namespace Mdr.Revit.Addin.UI
                 applyButton.IsEnabled = ViewModel.CanApply;
             }
 
+            void RefreshArcaOptionBindings()
+            {
+                blockCombo.ItemsSource = null;
+                blockCombo.ItemsSource = ViewModel.BlockOptions;
+                blockCombo.Text = ViewModel.SelectedBlock;
+                levelCombo.ItemsSource = null;
+                levelCombo.ItemsSource = ViewModel.LevelOptions;
+                levelCombo.Text = ViewModel.SelectedLevel;
+            }
+
+            void RefreshModeControls()
+            {
+                Visibility formulaVisibility = ViewModel.IsArcaMode ? Visibility.Collapsed : Visibility.Visible;
+                Visibility arcaVisibility = ViewModel.IsArcaMode ? Visibility.Visible : Visibility.Collapsed;
+                formulaPanel.Visibility = formulaVisibility;
+                optionsRow.Visibility = formulaVisibility;
+                arcaPanel.Visibility = arcaVisibility;
+            }
+
+            void RefreshArcaMetadata()
+            {
+                if (!ViewModel.IsArcaMode)
+                {
+                    return;
+                }
+
+                ViewModel.CategoryBuiltInName = categoryTextBox.Text ?? string.Empty;
+                SmartNumberingMetadata metadata = _app.GetSmartNumberingMetadata(ViewModel.BuildRule());
+                ViewModel.SetMetadata(metadata);
+                RefreshArcaOptionBindings();
+            }
+
             bool TryApplyControlValues(bool fromRuleSelection, out string validationMessage)
             {
                 validationMessage = string.Empty;
@@ -153,6 +216,34 @@ namespace Mdr.Revit.Addin.UI
                     targetsTextBox.Text = ViewModel.TargetsText;
                     startAtTextBox.Text = ViewModel.StartAt.ToString(CultureInfo.InvariantCulture);
                     widthTextBox.Text = ViewModel.SequenceWidth.ToString(CultureInfo.InvariantCulture);
+                    categoryTextBox.Text = ViewModel.CategoryBuiltInName;
+                    blockCombo.Text = ViewModel.SelectedBlock;
+                    levelCombo.Text = ViewModel.SelectedLevel;
+                    RefreshModeControls();
+                    RefreshArcaMetadata();
+                }
+                else if (ViewModel.IsArcaMode)
+                {
+                    ViewModel.CategoryBuiltInName = categoryTextBox.Text ?? string.Empty;
+                    ViewModel.SelectedBlock = blockCombo.Text ?? string.Empty;
+                    ViewModel.SelectedLevel = levelCombo.Text ?? string.Empty;
+                    if (string.IsNullOrWhiteSpace(ViewModel.CategoryBuiltInName))
+                    {
+                        validationMessage = "Category is required.";
+                        return false;
+                    }
+
+                    if (string.IsNullOrWhiteSpace(ViewModel.SelectedBlock))
+                    {
+                        validationMessage = "Block is required.";
+                        return false;
+                    }
+
+                    if (string.IsNullOrWhiteSpace(ViewModel.SelectedLevel))
+                    {
+                        validationMessage = "Level is required.";
+                        return false;
+                    }
                 }
                 else
                 {
@@ -238,6 +329,10 @@ namespace Mdr.Revit.Addin.UI
             targetsTextBox.TextChanged += (_, _) => MarkDirty();
             startAtTextBox.TextChanged += (_, _) => MarkDirty();
             widthTextBox.TextChanged += (_, _) => MarkDirty();
+            categoryTextBox.TextChanged += (_, _) => MarkDirty();
+            categoryTextBox.LostFocus += (_, _) => RefreshArcaMetadata();
+            blockCombo.SelectionChanged += (_, _) => MarkDirty();
+            levelCombo.SelectionChanged += (_, _) => MarkDirty();
 
             previewButton.Click += (_, _) => RunPreview();
             applyButton.Click += (_, _) =>
@@ -294,6 +389,8 @@ namespace Mdr.Revit.Addin.UI
             };
 
             // Initial preview is run once with debounce policy active.
+            RefreshModeControls();
+            RefreshArcaMetadata();
             MarkDirty();
             return window.ShowDialog();
         }
@@ -360,11 +457,17 @@ namespace Mdr.Revit.Addin.UI
             TextBox targetsTextBox,
             TextBox startAtTextBox,
             TextBox widthTextBox,
+            TextBox categoryTextBox,
+            ComboBox blockCombo,
+            ComboBox levelCombo,
             TextBlock statusText,
             DataGrid previewGrid,
             Button previewButton,
             Button applyButton,
-            Button closeButton)
+            Button closeButton,
+            out FrameworkElement formulaPanelOut,
+            out FrameworkElement optionsRowOut,
+            out FrameworkElement arcaPanelOut)
         {
             Grid root = new Grid
             {
@@ -415,6 +518,7 @@ namespace Mdr.Revit.Addin.UI
             formulaPanel.Children.Add(formulaTextBox);
             root.Children.Add(formulaPanel);
             Grid.SetRow(formulaPanel, 2);
+            formulaPanelOut = formulaPanel;
 
             Grid optionsRow = new Grid
             {
@@ -468,6 +572,40 @@ namespace Mdr.Revit.Addin.UI
 
             root.Children.Add(optionsRow);
             Grid.SetRow(optionsRow, 3);
+            optionsRowOut = optionsRow;
+
+            StackPanel arcaPanel = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Margin = new Thickness(0, 0, 0, 8),
+            };
+            arcaPanel.Children.Add(new TextBlock
+            {
+                Width = 120,
+                VerticalAlignment = VerticalAlignment.Center,
+                Text = "ARCA",
+            });
+            arcaPanel.Children.Add(new TextBlock
+            {
+                VerticalAlignment = VerticalAlignment.Center,
+                Text = "Category",
+            });
+            arcaPanel.Children.Add(categoryTextBox);
+            arcaPanel.Children.Add(new TextBlock
+            {
+                VerticalAlignment = VerticalAlignment.Center,
+                Text = "Block",
+            });
+            arcaPanel.Children.Add(blockCombo);
+            arcaPanel.Children.Add(new TextBlock
+            {
+                VerticalAlignment = VerticalAlignment.Center,
+                Text = "Level",
+            });
+            arcaPanel.Children.Add(levelCombo);
+            root.Children.Add(arcaPanel);
+            Grid.SetRow(arcaPanel, 3);
+            arcaPanelOut = arcaPanel;
 
             root.Children.Add(previewGrid);
             Grid.SetRow(previewGrid, 4);

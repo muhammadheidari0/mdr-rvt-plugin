@@ -179,10 +179,19 @@ namespace Mdr.Revit.RevitAdapter.Extractors
                 return diff;
             }
 
+            bool instanceOnlyWrites = profile?.InstanceOnlyWrites == true;
             for (int i = 0; i < incomingRows.Count; i++)
             {
                 ScheduleSyncRow row = incomingRows[i].Clone();
-                if (row.Errors.Count > 0 || string.IsNullOrWhiteSpace(row.AnchorUniqueId))
+                if (row.Errors.Count > 0)
+                {
+                    row.ChangeState = ScheduleSyncStates.Error;
+                    diff.ErrorRowsCount++;
+                    diff.Rows.Add(row);
+                    continue;
+                }
+
+                if (string.IsNullOrWhiteSpace(row.AnchorUniqueId))
                 {
                     row.ChangeState = ScheduleSyncStates.Error;
                     row.Errors.Add(new ScheduleSyncError
@@ -223,6 +232,28 @@ namespace Mdr.Revit.RevitAdapter.Extractors
                         continue;
                     }
 
+                    if (instanceOnlyWrites)
+                    {
+                        if (!_parameterAccessor.CanWriteInstanceValue(
+                            element,
+                            mapping.RevitParameter,
+                            incomingValue ?? string.Empty,
+                            out string instanceCode,
+                            out string instanceMessage))
+                        {
+                            AddMappingError(row, mapping, instanceCode, instanceMessage);
+                            continue;
+                        }
+
+                        string instanceCurrent = _parameterAccessor.ReadInstanceValue(element, mapping.RevitParameter);
+                        if (!string.Equals(instanceCurrent, incomingValue ?? string.Empty, StringComparison.Ordinal))
+                        {
+                            changed = true;
+                        }
+
+                        continue;
+                    }
+
                     string current = _parameterAccessor.ReadValue(element, mapping.RevitParameter);
                     if (string.Equals(current, incomingValue ?? string.Empty, StringComparison.Ordinal))
                     {
@@ -237,11 +268,7 @@ namespace Mdr.Revit.RevitAdapter.Extractors
                         out string message))
                     {
                         row.ChangeState = ScheduleSyncStates.Error;
-                        row.Errors.Add(new ScheduleSyncError
-                        {
-                            Code = string.IsNullOrWhiteSpace(code) ? "type_mismatch" : code,
-                            Message = string.IsNullOrWhiteSpace(message) ? "Value cannot be applied." : message,
-                        });
+                        AddMappingError(row, mapping, code, message);
                         continue;
                     }
 
@@ -250,13 +277,17 @@ namespace Mdr.Revit.RevitAdapter.Extractors
 
                 if (row.Errors.Count > 0)
                 {
-                    row.ChangeState = ScheduleSyncStates.Error;
                     diff.ErrorRowsCount++;
                 }
-                else if (changed)
+
+                if (changed)
                 {
                     row.ChangeState = ScheduleSyncStates.Modified;
                     diff.ChangedRowsCount++;
+                }
+                else if (row.Errors.Count > 0)
+                {
+                    row.ChangeState = ScheduleSyncStates.Error;
                 }
                 else
                 {
@@ -285,7 +316,11 @@ namespace Mdr.Revit.RevitAdapter.Extractors
                 return result;
             }
 
-            using (Transaction transaction = new Transaction(_uiDocument.Document, "MDR Google Sheets Sync Apply"))
+            bool instanceOnlyWrites = profile?.InstanceOnlyWrites == true;
+            string transactionName = instanceOnlyWrites
+                ? "MDR Excel Sync Apply"
+                : "MDR Google Sheets Sync Apply";
+            using (Transaction transaction = new Transaction(_uiDocument.Document, transactionName))
             {
                 transaction.Start();
                 for (int i = 0; i < diff.Rows.Count; i++)
@@ -309,6 +344,7 @@ namespace Mdr.Revit.RevitAdapter.Extractors
                     }
 
                     bool failed = false;
+                    bool appliedAny = false;
                     for (int m = 0; m < profile.ColumnMappings.Count; m++)
                     {
                         GoogleSheetColumnMapping mapping = profile.ColumnMappings[m];
@@ -319,6 +355,56 @@ namespace Mdr.Revit.RevitAdapter.Extractors
 
                         if (!row.Cells.TryGetValue(mapping.SheetColumn, out string value))
                         {
+                            continue;
+                        }
+
+                        if (instanceOnlyWrites)
+                        {
+                            if (!_parameterAccessor.CanWriteInstanceValue(
+                                element,
+                                mapping.RevitParameter,
+                                value ?? string.Empty,
+                                out string instanceCode,
+                                out string instanceMessage))
+                            {
+                                failed = true;
+                                result.Errors.Add(new ScheduleSyncError
+                                {
+                                    Code = string.IsNullOrWhiteSpace(instanceCode)
+                                        ? "instance_parameter_not_writable"
+                                        : instanceCode,
+                                    Message = string.IsNullOrWhiteSpace(instanceMessage)
+                                        ? "Writable instance parameter was not found."
+                                        : instanceMessage,
+                                });
+                                continue;
+                            }
+
+                            string instanceCurrent = _parameterAccessor.ReadInstanceValue(element, mapping.RevitParameter);
+                            if (string.Equals(instanceCurrent, value ?? string.Empty, StringComparison.Ordinal))
+                            {
+                                continue;
+                            }
+
+                            if (!_parameterAccessor.TryWriteInstanceValue(
+                                element,
+                                mapping.RevitParameter,
+                                value ?? string.Empty,
+                                out string writeCode,
+                                out string writeMessage))
+                            {
+                                failed = true;
+                                result.Errors.Add(new ScheduleSyncError
+                                {
+                                    Code = string.IsNullOrWhiteSpace(writeCode) ? "apply_failed" : writeCode,
+                                    Message = string.IsNullOrWhiteSpace(writeMessage)
+                                        ? "Failed to apply instance parameter update."
+                                        : writeMessage,
+                                });
+                                continue;
+                            }
+
+                            appliedAny = true;
                             continue;
                         }
 
@@ -345,7 +431,19 @@ namespace Mdr.Revit.RevitAdapter.Extractors
                         }
                     }
 
-                    if (failed)
+                    if (instanceOnlyWrites)
+                    {
+                        if (failed)
+                        {
+                            result.FailedCount++;
+                        }
+
+                        if (appliedAny)
+                        {
+                            result.AppliedCount++;
+                        }
+                    }
+                    else if (failed)
                     {
                         result.FailedCount++;
                     }
@@ -359,6 +457,29 @@ namespace Mdr.Revit.RevitAdapter.Extractors
             }
 
             return result;
+        }
+
+        private static void AddMappingError(
+            ScheduleSyncRow row,
+            GoogleSheetColumnMapping mapping,
+            string code,
+            string message)
+        {
+            string column = mapping?.SheetColumn ?? string.Empty;
+            string parameter = mapping?.RevitParameter ?? string.Empty;
+            string detail = string.IsNullOrWhiteSpace(message)
+                ? "Value cannot be applied."
+                : message;
+            if (!string.IsNullOrWhiteSpace(column) || !string.IsNullOrWhiteSpace(parameter))
+            {
+                detail += " Column='" + column + "' Parameter='" + parameter + "'.";
+            }
+
+            row.Errors.Add(new ScheduleSyncError
+            {
+                Code = string.IsNullOrWhiteSpace(code) ? "type_mismatch" : code,
+                Message = detail,
+            });
         }
 
         private static ViewSchedule? ResolveSchedule(Document document, string scheduleName)

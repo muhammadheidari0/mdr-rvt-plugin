@@ -6,15 +6,29 @@ namespace Mdr.Revit.Core.Models
     {
         public string RuleId { get; set; } = string.Empty;
 
+        public string Mode { get; set; } = SmartNumberingModes.Formula;
+
         public string Formula { get; set; } = string.Empty;
 
         public string SelectionFilter { get; set; } = string.Empty;
+
+        public string CategoryBuiltInName { get; set; } = string.Empty;
+
+        public string SelectedBlock { get; set; } = string.Empty;
+
+        public string SelectedLevel { get; set; } = string.Empty;
 
         public int SequenceWidth { get; set; } = 5;
 
         public int StartAt { get; set; } = 1;
 
         public List<string> Targets { get; } = new List<string>();
+    }
+
+    public static class SmartNumberingModes
+    {
+        public const string Formula = "formula";
+        public const string Arca = "arca";
     }
 
     public sealed class SmartNumberingResult
@@ -104,5 +118,60 @@ namespace Mdr.Revit.Core.Models
         public string Value { get; set; } = string.Empty;
 
         public int SequenceWidth { get; set; }
+    }
+
+    public sealed class SmartNumberingMetadata
+    {
+        public List<string> Blocks { get; } = new List<string>();
+
+        public List<string> Levels { get; } = new List<string>();
+    }
+
+    public sealed class ArcaSerialNumberingElementSnapshot
+    {
+        public string ElementKey { get; set; } = string.Empty;
+
+        public int ElementId { get; set; }
+
+        public string Block { get; set; } = string.Empty;
+
+        public string LevelCode { get; set; } = string.Empty;
+
+        public string TypeMark { get; set; } = string.Empty;
+
+        public string Series { get; set; } = string.Empty;
+
+        public string SerialNo { get; set; } = string.Empty;
+
+        public int ScopeSort { get; set; } = 9999;
+    }
+
+    public sealed class ArcaSerialNumberingPlanRequest
+    {
+        public string SelectedBlock { get; set; } = string.Empty;
+
+        public string SelectedLevelCode { get; set; } = string.Empty;
+
+        public List<ArcaSerialNumberingElementSnapshot> Elements { get; } = new List<ArcaSerialNumberingElementSnapshot>();
+    }
+
+    public sealed class ArcaSerialNumberingPlan
+    {
+        public List<SmartNumberingPreviewItem> Preview { get; } = new List<SmartNumberingPreviewItem>();
+
+        public List<ArcaSerialNumberingWrite> Writes { get; } = new List<ArcaSerialNumberingWrite>();
+
+        public int SkippedCount { get; set; }
+    }
+
+    public sealed class ArcaSerialNumberingWrite
+    {
+        public string ElementKey { get; set; } = string.Empty;
+
+        public string Target { get; set; } = string.Empty;
+
+        public string Value { get; set; } = string.Empty;
+
+        public SmartNumberingPreviewItem Preview { get; set; } = new SmartNumberingPreviewItem();
     }
 }

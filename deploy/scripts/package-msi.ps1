@@ -86,7 +86,7 @@ function Resolve-PluginVersion {
 
     $templateConfig = Join-Path $RepoRoot "config\appsettings.template.json"
     if (-not (Test-Path $templateConfig)) {
-        return "0.3.6"
+        return "0.4.0"
     }
 
     try {
@@ -95,16 +95,16 @@ function Resolve-PluginVersion {
             return $config.pluginVersion.Trim()
         }
     } catch {
-        return "0.3.6"
+        return "0.4.0"
     }
 
-    return "0.3.6"
+    return "0.4.0"
 }
 
 function Convert-ToMsiVersion {
     param([string]$VersionText)
 
-    $core = if ([string]::IsNullOrWhiteSpace($VersionText)) { "0.3.6" } else { $VersionText.Trim() }
+    $core = if ([string]::IsNullOrWhiteSpace($VersionText)) { "0.4.0" } else { $VersionText.Trim() }
     $dashIndex = $core.IndexOf("-")
     if ($dashIndex -gt 0) {
         $core = $core.Substring(0, $dashIndex)
@@ -251,13 +251,17 @@ function Copy-PackageFiles {
     Ensure-Directory -PathValue $binDir
 
     Write-Host "==> Copying addin binaries"
-    $files = Get-ChildItem -Path $AddinOutputDir -File
+    $files = Get-ChildItem -Path $AddinOutputDir -Recurse -File
     foreach ($file in $files) {
         if (-not $IncludeDebugSymbols -and $file.Extension.Equals(".pdb", [System.StringComparison]::OrdinalIgnoreCase)) {
             continue
         }
 
-        Copy-Item -Path $file.FullName -Destination (Join-Path $binDir $file.Name) -Force
+        $relativePath = [System.IO.Path]::GetRelativePath($AddinOutputDir, $file.FullName)
+        $destinationPath = Join-Path $binDir $relativePath
+        $destinationDirectory = Split-Path -Path $destinationPath -Parent
+        Ensure-Directory -PathValue $destinationDirectory
+        Copy-Item -LiteralPath $file.FullName -Destination $destinationPath -Force
     }
 
     $configSource = Join-Path $RepoRoot "config\appsettings.template.json"

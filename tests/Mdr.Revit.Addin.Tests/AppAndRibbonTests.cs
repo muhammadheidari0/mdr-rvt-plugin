@@ -12,12 +12,13 @@ namespace Mdr.Revit.Addin.Tests
             App app = new App();
             var commands = app.BuildRibbon();
 
-            Assert.Equal(8, commands.Count);
+            Assert.Equal(9, commands.Count);
             Assert.Contains(commands, x => x.Id == "mdr.login");
             Assert.Contains(commands, x => x.Id == "mdr.publishSheets");
             Assert.Contains(commands, x => x.Id == "mdr.pushSchedules");
             Assert.Contains(commands, x => x.Id == "mdr.syncSiteLogs");
             Assert.Contains(commands, x => x.Id == "mdr.googleSync");
+            Assert.Contains(commands, x => x.Id == "mdr.excelSync");
             Assert.Contains(commands, x => x.Id == "mdr.smartNumbering");
             Assert.Contains(commands, x => x.Id == "mdr.checkUpdates");
             Assert.Contains(commands, x => x.Id == "mdr.settings");

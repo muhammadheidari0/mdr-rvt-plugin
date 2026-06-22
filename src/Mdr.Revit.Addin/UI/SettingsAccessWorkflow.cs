@@ -27,6 +27,14 @@ namespace Mdr.Revit.Addin.UI
         public string ApiBaseUrl { get; set; } = string.Empty;
 
         public string NativeFormat { get; set; } = "dwg";
+
+        public string ExcelDefaultDirectory { get; set; } = string.Empty;
+
+        public string ExcelDefaultWorksheetName { get; set; } = string.Empty;
+
+        public string ExcelImportPassword { get; set; } = string.Empty;
+
+        public string ExcelImportPasswordConfirm { get; set; } = string.Empty;
     }
 
     public sealed class SettingsAccessWorkflow
@@ -34,6 +42,7 @@ namespace Mdr.Revit.Addin.UI
         private readonly Func<PluginConfig> _loadConfig;
         private readonly Action<PluginConfig> _saveConfig;
         private readonly AdminPinService _pinService;
+        private readonly ExcelImportPasswordService _excelImportPasswordService;
         private readonly Func<AdminPinDialogMode, AdminPinDialogResult> _pinPrompt;
         private readonly Func<PluginConfig, SettingsDialogResult> _settingsPrompt;
         private readonly Action<string, string, MessageBoxImage> _showMessage;
@@ -43,6 +52,7 @@ namespace Mdr.Revit.Addin.UI
                 BuildLoadConfigAccessor(app),
                 BuildSaveConfigAccessor(app),
                 new AdminPinService(),
+                new ExcelImportPasswordService(),
                 ShowPinDialog,
                 ShowSettingsDialog,
                 ShowMessage)
@@ -53,6 +63,7 @@ namespace Mdr.Revit.Addin.UI
             Func<PluginConfig> loadConfig,
             Action<PluginConfig> saveConfig,
             AdminPinService pinService,
+            ExcelImportPasswordService excelImportPasswordService,
             Func<AdminPinDialogMode, AdminPinDialogResult> pinPrompt,
             Func<PluginConfig, SettingsDialogResult> settingsPrompt,
             Action<string, string, MessageBoxImage>? showMessage = null)
@@ -60,9 +71,28 @@ namespace Mdr.Revit.Addin.UI
             _loadConfig = loadConfig ?? throw new ArgumentNullException(nameof(loadConfig));
             _saveConfig = saveConfig ?? throw new ArgumentNullException(nameof(saveConfig));
             _pinService = pinService ?? throw new ArgumentNullException(nameof(pinService));
+            _excelImportPasswordService = excelImportPasswordService ?? throw new ArgumentNullException(nameof(excelImportPasswordService));
             _pinPrompt = pinPrompt ?? throw new ArgumentNullException(nameof(pinPrompt));
             _settingsPrompt = settingsPrompt ?? throw new ArgumentNullException(nameof(settingsPrompt));
             _showMessage = showMessage ?? ShowMessage;
+        }
+
+        internal SettingsAccessWorkflow(
+            Func<PluginConfig> loadConfig,
+            Action<PluginConfig> saveConfig,
+            AdminPinService pinService,
+            Func<AdminPinDialogMode, AdminPinDialogResult> pinPrompt,
+            Func<PluginConfig, SettingsDialogResult> settingsPrompt,
+            Action<string, string, MessageBoxImage>? showMessage = null)
+            : this(
+                loadConfig,
+                saveConfig,
+                pinService,
+                new ExcelImportPasswordService(),
+                pinPrompt,
+                settingsPrompt,
+                showMessage)
+        {
         }
 
         public bool OpenSettings()
@@ -94,9 +124,24 @@ namespace Mdr.Revit.Addin.UI
                 return false;
             }
 
+            if (string.IsNullOrWhiteSpace(settingsResult.ExcelDefaultDirectory))
+            {
+                settingsResult.ExcelDefaultDirectory = config.Excel?.DefaultDirectory ??
+                    "%LocalAppData%/MDR/RevitPlugin/excel";
+            }
+
+            if (settingsResult.ExcelDefaultWorksheetName == null)
+            {
+                settingsResult.ExcelDefaultWorksheetName = config.Excel?.DefaultWorksheetName ?? string.Empty;
+            }
+
             if (!SettingsWindow.TryValidateValues(
                     settingsResult.ApiBaseUrl ?? string.Empty,
                     settingsResult.NativeFormat ?? string.Empty,
+                    settingsResult.ExcelDefaultDirectory ?? string.Empty,
+                    settingsResult.ExcelDefaultWorksheetName ?? string.Empty,
+                    settingsResult.ExcelImportPassword ?? string.Empty,
+                    settingsResult.ExcelImportPasswordConfirm ?? string.Empty,
                     out string validationError))
             {
                 _showMessage(validationError, "Invalid Settings", MessageBoxImage.Warning);
@@ -110,6 +155,21 @@ namespace Mdr.Revit.Addin.UI
             }
 
             config.Publish.NativeFormat = settingsResult.NativeFormat ?? "dwg";
+            if (config.Excel == null)
+            {
+                config.Excel = new ExcelPluginConfig();
+            }
+
+            config.Excel.DefaultDirectory = settingsResult.ExcelDefaultDirectory ?? string.Empty;
+            config.Excel.DefaultWorksheetName = settingsResult.ExcelDefaultWorksheetName ?? string.Empty;
+            if (!string.IsNullOrWhiteSpace(settingsResult.ExcelImportPassword))
+            {
+                _excelImportPasswordService.ConfigurePassword(
+                    config,
+                    settingsResult.ExcelImportPassword,
+                    settingsResult.ExcelImportPasswordConfirm ?? string.Empty);
+            }
+
             _saveConfig(config);
             _showMessage("Settings saved successfully.", "Settings", MessageBoxImage.Information);
             return true;
@@ -205,6 +265,10 @@ namespace Mdr.Revit.Addin.UI
                 Accepted = accepted,
                 ApiBaseUrl = dialog.ApiBaseUrl,
                 NativeFormat = dialog.NativeFormat,
+                ExcelDefaultDirectory = dialog.ExcelDefaultDirectory,
+                ExcelDefaultWorksheetName = dialog.ExcelDefaultWorksheetName,
+                ExcelImportPassword = dialog.ExcelImportPassword,
+                ExcelImportPasswordConfirm = dialog.ExcelImportPasswordConfirm,
             };
         }
 

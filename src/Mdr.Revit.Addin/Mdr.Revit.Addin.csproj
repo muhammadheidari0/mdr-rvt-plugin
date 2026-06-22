@@ -5,6 +5,7 @@
     <RootNamespace>Mdr.Revit.Addin</RootNamespace>
     <OutputType>Library</OutputType>
     <UseWPF>true</UseWPF>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
     <EnableDefaultPageItems>false</EnableDefaultPageItems>
     <Nullable>enable</Nullable>
     <ImplicitUsings>disable</ImplicitUsings>
@@ -30,9 +31,14 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="ClosedXML" />
+  </ItemGroup>
+
+  <ItemGroup>
     <None Update="Resources\Icons\*.png">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+    <Resource Include="Resources\Icons\*.png" />
     <EmbeddedResource Include="Resources\Icons\*.png" />
   </ItemGroup>
 

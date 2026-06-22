@@ -59,6 +59,44 @@ namespace Mdr.Revit.Addin.Tests
         }
 
         [Fact]
+        public void BuildRule_ArcaMode_CapturesCategoryBlockAndLevel()
+        {
+            SmartNumberingWindowViewModel vm = new SmartNumberingWindowViewModel
+            {
+                SelectedRuleId = "arca-serial",
+                Mode = SmartNumberingModes.Arca,
+                CategoryBuiltInName = "OST_Walls",
+                SelectedBlock = "A",
+                SelectedLevel = "01",
+            };
+
+            SmartNumberingRule rule = vm.BuildRule();
+
+            Assert.Equal(SmartNumberingModes.Arca, rule.Mode);
+            Assert.Equal("OST_Walls", rule.CategoryBuiltInName);
+            Assert.Equal("A", rule.SelectedBlock);
+            Assert.Equal("01", rule.SelectedLevel);
+            Assert.Contains("Serial No", rule.Targets);
+        }
+
+        [Fact]
+        public void SetMetadata_SelectsFirstArcaBlockAndLevelWhenEmpty()
+        {
+            SmartNumberingWindowViewModel vm = new SmartNumberingWindowViewModel
+            {
+                Mode = SmartNumberingModes.Arca,
+            };
+            SmartNumberingMetadata metadata = new SmartNumberingMetadata();
+            metadata.Blocks.Add("A");
+            metadata.Levels.Add("01");
+
+            vm.SetMetadata(metadata);
+
+            Assert.Equal("A", vm.SelectedBlock);
+            Assert.Equal("01", vm.SelectedLevel);
+        }
+
+        [Fact]
         public void UpdatePreview_WithErrors_DisablesApply()
         {
             SmartNumberingWindowViewModel vm = new SmartNumberingWindowViewModel();

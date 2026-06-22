@@ -9,16 +9,30 @@ namespace Mdr.Revit.Addin.UI
     {
         private readonly List<SmartNumberingRuleOption> _ruleOptions = new List<SmartNumberingRuleOption>();
         private readonly List<SmartNumberingPreviewRow> _previewRows = new List<SmartNumberingPreviewRow>();
+        private readonly List<string> _blockOptions = new List<string>();
+        private readonly List<string> _levelOptions = new List<string>();
 
         public IReadOnlyList<SmartNumberingRuleOption> RuleOptions => _ruleOptions;
 
         public IReadOnlyList<SmartNumberingPreviewRow> PreviewRows => _previewRows;
 
+        public IReadOnlyList<string> BlockOptions => _blockOptions;
+
+        public IReadOnlyList<string> LevelOptions => _levelOptions;
+
         public string SelectedRuleId { get; set; } = string.Empty;
+
+        public string Mode { get; set; } = SmartNumberingModes.Formula;
 
         public string Formula { get; set; } = "{Mark}-{Sequence:5}";
 
         public string TargetsText { get; set; } = "Serial No";
+
+        public string CategoryBuiltInName { get; set; } = "OST_Walls";
+
+        public string SelectedBlock { get; set; } = string.Empty;
+
+        public string SelectedLevel { get; set; } = string.Empty;
 
         public int StartAt { get; set; } = 1;
 
@@ -29,6 +43,8 @@ namespace Mdr.Revit.Addin.UI
         public bool HasPreviewErrors { get; private set; }
 
         public bool CanApply => _previewRows.Count > 0 && !HasPreviewErrors;
+
+        public bool IsArcaMode => string.Equals(Mode, SmartNumberingModes.Arca, StringComparison.OrdinalIgnoreCase);
 
         public void SetRules(IReadOnlyList<SmartNumberingRule> rules, string defaultRuleId)
         {
@@ -100,8 +116,14 @@ namespace Mdr.Revit.Addin.UI
                 RuleId = string.IsNullOrWhiteSpace(SelectedRuleId)
                     ? (template?.RuleId ?? "runtime")
                     : SelectedRuleId.Trim(),
+                Mode = string.IsNullOrWhiteSpace(Mode) ? SmartNumberingModes.Formula : Mode.Trim(),
                 Formula = (Formula ?? string.Empty).Trim(),
                 SelectionFilter = template?.SelectionFilter ?? string.Empty,
+                CategoryBuiltInName = string.IsNullOrWhiteSpace(CategoryBuiltInName)
+                    ? (template?.CategoryBuiltInName ?? string.Empty)
+                    : CategoryBuiltInName.Trim(),
+                SelectedBlock = (SelectedBlock ?? string.Empty).Trim(),
+                SelectedLevel = (SelectedLevel ?? string.Empty).Trim(),
                 SequenceWidth = SequenceWidth <= 0 ? 5 : SequenceWidth,
                 StartAt = StartAt <= 0 ? 1 : StartAt,
             };
@@ -118,6 +140,28 @@ namespace Mdr.Revit.Addin.UI
             }
 
             return rule;
+        }
+
+        public void SetMetadata(SmartNumberingMetadata metadata)
+        {
+            _blockOptions.Clear();
+            _levelOptions.Clear();
+
+            if (metadata != null)
+            {
+                AddDistinct(_blockOptions, metadata.Blocks);
+                AddDistinct(_levelOptions, metadata.Levels);
+            }
+
+            if (string.IsNullOrWhiteSpace(SelectedBlock) && _blockOptions.Count > 0)
+            {
+                SelectedBlock = _blockOptions[0];
+            }
+
+            if (string.IsNullOrWhiteSpace(SelectedLevel) && _levelOptions.Count > 0)
+            {
+                SelectedLevel = _levelOptions[0];
+            }
         }
 
         public void UpdatePreview(SmartNumberingResult result)
@@ -173,7 +217,13 @@ namespace Mdr.Revit.Addin.UI
 
         private void ApplyRuleTemplate(SmartNumberingRule rule)
         {
+            Mode = string.IsNullOrWhiteSpace(rule.Mode) ? SmartNumberingModes.Formula : rule.Mode.Trim();
             Formula = (rule.Formula ?? string.Empty).Trim();
+            CategoryBuiltInName = string.IsNullOrWhiteSpace(rule.CategoryBuiltInName)
+                ? "OST_Walls"
+                : rule.CategoryBuiltInName.Trim();
+            SelectedBlock = (rule.SelectedBlock ?? string.Empty).Trim();
+            SelectedLevel = (rule.SelectedLevel ?? string.Empty).Trim();
             StartAt = rule.StartAt <= 0 ? 1 : rule.StartAt;
             SequenceWidth = rule.SequenceWidth <= 0 ? 5 : rule.SequenceWidth;
             TargetsText = rule.Targets.Count == 0
@@ -186,8 +236,12 @@ namespace Mdr.Revit.Addin.UI
             SmartNumberingRule copy = new SmartNumberingRule
             {
                 RuleId = source.RuleId ?? string.Empty,
+                Mode = string.IsNullOrWhiteSpace(source.Mode) ? SmartNumberingModes.Formula : source.Mode,
                 Formula = source.Formula ?? string.Empty,
                 SelectionFilter = source.SelectionFilter ?? string.Empty,
+                CategoryBuiltInName = source.CategoryBuiltInName ?? string.Empty,
+                SelectedBlock = source.SelectedBlock ?? string.Empty,
+                SelectedLevel = source.SelectedLevel ?? string.Empty,
                 SequenceWidth = source.SequenceWidth,
                 StartAt = source.StartAt,
             };
@@ -204,6 +258,30 @@ namespace Mdr.Revit.Addin.UI
             }
 
             return copy;
+        }
+
+        private static void AddDistinct(List<string> target, IReadOnlyList<string> values)
+        {
+            if (values == null)
+            {
+                return;
+            }
+
+            for (int i = 0; i < values.Count; i++)
+            {
+                string value = (values[i] ?? string.Empty).Trim();
+                if (string.IsNullOrWhiteSpace(value))
+                {
+                    continue;
+                }
+
+                if (target.Any(x => string.Equals(x, value, StringComparison.OrdinalIgnoreCase)))
+                {
+                    continue;
+                }
+
+                target.Add(value);
+            }
         }
 
         private static IReadOnlyList<string> ParseTargets(string raw)

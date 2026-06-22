@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Text.Json;
+using Mdr.Revit.Core.Models;
 
 namespace Mdr.Revit.Infra.Config
 {
@@ -77,7 +78,7 @@ namespace Mdr.Revit.Infra.Config
 
             if (string.IsNullOrWhiteSpace(config.PluginVersion))
             {
-                config.PluginVersion = "0.3.6";
+                config.PluginVersion = "0.4.0";
             }
 
             if (string.IsNullOrWhiteSpace(config.DefaultPublishStatusCode))
@@ -108,6 +109,26 @@ namespace Mdr.Revit.Infra.Config
             if (string.IsNullOrWhiteSpace(config.Google.TokenStorePath))
             {
                 config.Google.TokenStorePath = "%LocalAppData%/MDR/RevitPlugin/google/token.dat";
+            }
+
+            if (config.Excel == null)
+            {
+                config.Excel = new ExcelPluginConfig();
+            }
+
+            if (string.IsNullOrWhiteSpace(config.Excel.DefaultDirectory))
+            {
+                config.Excel.DefaultDirectory = "%LocalAppData%/MDR/RevitPlugin/excel";
+            }
+
+            if (string.IsNullOrWhiteSpace(config.Excel.AnchorColumn))
+            {
+                config.Excel.AnchorColumn = "MDR_UNIQUE_ID";
+            }
+
+            if (config.Excel.ImportPasswordIterations <= 0)
+            {
+                config.Excel.ImportPasswordIterations = 120000;
             }
 
             if (config.Updates == null)
@@ -150,7 +171,59 @@ namespace Mdr.Revit.Infra.Config
                 config.SmartNumbering = new SmartNumberingPluginConfig();
             }
 
+            EnsureSmartNumberingDefaults(config.SmartNumbering);
+
             return config;
+        }
+
+        private static void EnsureSmartNumberingDefaults(SmartNumberingPluginConfig smartNumbering)
+        {
+            if (smartNumbering.Rules.Count == 0)
+            {
+                SmartNumberingRule arcaRule = new SmartNumberingRule
+                {
+                    RuleId = "arca-serial",
+                    Mode = SmartNumberingModes.Arca,
+                    CategoryBuiltInName = "OST_Walls",
+                    Formula = string.Empty,
+                    SequenceWidth = 3,
+                    StartAt = 1,
+                };
+                arcaRule.Targets.Add("Serial No");
+                smartNumbering.Rules.Add(arcaRule);
+
+                SmartNumberingRule formulaRule = new SmartNumberingRule
+                {
+                    RuleId = "formula-default",
+                    Mode = SmartNumberingModes.Formula,
+                    Formula = "{Block}{Level}-{CategoryCode}{SubcategoryCode}{Sequence:5}",
+                    SequenceWidth = 5,
+                    StartAt = 1,
+                };
+                formulaRule.Targets.Add("Serial No");
+                formulaRule.Targets.Add("Type Mark");
+                smartNumbering.Rules.Add(formulaRule);
+            }
+
+            if (string.IsNullOrWhiteSpace(smartNumbering.DefaultRuleId))
+            {
+                smartNumbering.DefaultRuleId = smartNumbering.Rules[0].RuleId;
+            }
+
+            for (int i = 0; i < smartNumbering.Rules.Count; i++)
+            {
+                SmartNumberingRule rule = smartNumbering.Rules[i];
+                if (string.IsNullOrWhiteSpace(rule.Mode))
+                {
+                    rule.Mode = SmartNumberingModes.Formula;
+                }
+
+                if (string.Equals(rule.Mode, SmartNumberingModes.Arca, StringComparison.OrdinalIgnoreCase) &&
+                    string.IsNullOrWhiteSpace(rule.CategoryBuiltInName))
+                {
+                    rule.CategoryBuiltInName = "OST_Walls";
+                }
+            }
         }
     }
 }

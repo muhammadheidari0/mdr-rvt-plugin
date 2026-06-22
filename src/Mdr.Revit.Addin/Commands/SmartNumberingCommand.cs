@@ -14,12 +14,14 @@ namespace Mdr.Revit.Addin.Commands
     public sealed class SmartNumberingCommand
     {
         private readonly ISmartNumberingEngine _smartNumberingEngine;
+        private readonly ISmartNumberingMetadataProvider _metadataProvider;
         private readonly SmartNumberingFormulaParser _formulaParser;
         private readonly PluginLogger _logger;
 
         public SmartNumberingCommand()
             : this(
                 new NullSmartNumberingEngine(),
+                new NullSmartNumberingMetadataProvider(),
                 new SmartNumberingFormulaParser(),
                 new PluginLogger(DefaultLogDirectory()))
         {
@@ -28,6 +30,7 @@ namespace Mdr.Revit.Addin.Commands
         public SmartNumberingCommand(UIDocument uiDocument)
             : this(
                 RevitApiExtractors.CreateSmartNumberingEngine(uiDocument),
+                RevitApiExtractors.CreateSmartNumberingMetadataProvider(uiDocument),
                 new SmartNumberingFormulaParser(),
                 new PluginLogger(DefaultLogDirectory()))
         {
@@ -35,10 +38,12 @@ namespace Mdr.Revit.Addin.Commands
 
         internal SmartNumberingCommand(
             ISmartNumberingEngine smartNumberingEngine,
+            ISmartNumberingMetadataProvider metadataProvider,
             SmartNumberingFormulaParser formulaParser,
             PluginLogger logger)
         {
             _smartNumberingEngine = smartNumberingEngine ?? throw new ArgumentNullException(nameof(smartNumberingEngine));
+            _metadataProvider = metadataProvider ?? throw new ArgumentNullException(nameof(metadataProvider));
             _formulaParser = formulaParser ?? throw new ArgumentNullException(nameof(formulaParser));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
@@ -60,6 +65,11 @@ namespace Mdr.Revit.Addin.Commands
             _logger.Info("Running smart numbering rule_id=" + request.Rule.RuleId);
             ApplySmartNumberingUseCase useCase = new ApplySmartNumberingUseCase(_smartNumberingEngine, _formulaParser);
             return useCase.Execute(request.Rule, request.PreviewOnly);
+        }
+
+        public SmartNumberingMetadata GetMetadata(SmartNumberingRule rule)
+        {
+            return _metadataProvider.GetMetadata(rule ?? new SmartNumberingRule());
         }
 
         private static string DefaultLogDirectory()
@@ -86,6 +96,15 @@ namespace Mdr.Revit.Addin.Commands
             _ = rule;
             _ = previewOnly;
             return new SmartNumberingResult();
+        }
+    }
+
+    internal sealed class NullSmartNumberingMetadataProvider : ISmartNumberingMetadataProvider
+    {
+        public SmartNumberingMetadata GetMetadata(SmartNumberingRule rule)
+        {
+            _ = rule;
+            return new SmartNumberingMetadata();
         }
     }
 }

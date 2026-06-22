@@ -26,6 +26,14 @@ namespace Mdr.Revit.Addin
             "System.Numerics.Vectors.dll",
             "System.Threading.Tasks.Extensions.dll",
             "System.ValueTuple.dll",
+            "System.IO.Packaging.dll",
+            "ClosedXML.Parser.dll",
+            "DocumentFormat.OpenXml.dll",
+            "DocumentFormat.OpenXml.Framework.dll",
+            "ExcelNumberFormat.dll",
+            "RBush.dll",
+            "SixLabors.Fonts.dll",
+            "ClosedXML.dll",
             "Mdr.Revit.Core.dll",
             "Mdr.Revit.Infra.dll",
             "Mdr.Revit.Client.dll",
@@ -63,6 +71,14 @@ namespace Mdr.Revit.Addin
                     typeof(GoogleSyncExternalCommand),
                     "Resources\\Icons\\google-16.png",
                     "Resources\\Icons\\google-32.png");
+                AddRibbonButton(
+                    panel,
+                    "mdr.excelSync",
+                    "Excel Sync",
+                    "Export and import Revit schedule values through an Excel workbook.",
+                    typeof(ExcelSyncExternalCommand),
+                    "Resources\\Icons\\excel-16.png",
+                    "Resources\\Icons\\excel-32.png");
                 AddRibbonButton(
                     panel,
                     "mdr.smartNumbering",
@@ -175,7 +191,7 @@ namespace Mdr.Revit.Addin
             }
         }
 
-        private static Assembly? ResolveAssemblyFromPluginDirectory(object sender, ResolveEventArgs args)
+        private static Assembly? ResolveAssemblyFromPluginDirectory(object? sender, ResolveEventArgs args)
         {
             _ = sender;
             if (args == null || string.IsNullOrWhiteSpace(args.Name))
@@ -284,6 +300,12 @@ namespace Mdr.Revit.Addin
 
             try
             {
+                ImageSource? packResource = TryLoadPackResourceIcon(relativePath);
+                if (packResource != null)
+                {
+                    return packResource;
+                }
+
                 ImageSource? embedded = TryLoadEmbeddedIcon(relativePath);
                 if (embedded != null)
                 {
@@ -314,6 +336,34 @@ namespace Mdr.Revit.Addin
             catch (Exception ex)
             {
                 WriteBootstrapLog("Icon load failed for " + relativePath, ex);
+                return null;
+            }
+        }
+
+        private static ImageSource? TryLoadPackResourceIcon(string relativePath)
+        {
+            try
+            {
+                Assembly assembly = Assembly.GetExecutingAssembly();
+                string normalized = relativePath.Replace('\\', '/');
+                string uriText = string.Format(
+                    CultureInfo.InvariantCulture,
+                    "pack://application:,,,/{0};component/{1}",
+                    assembly.GetName().Name,
+                    normalized);
+
+                BitmapImage bitmap = new BitmapImage();
+                bitmap.BeginInit();
+                bitmap.UriSource = new Uri(uriText, UriKind.Absolute);
+                bitmap.CacheOption = BitmapCacheOption.OnLoad;
+                bitmap.CreateOptions = BitmapCreateOptions.IgnoreImageCache;
+                bitmap.EndInit();
+                bitmap.Freeze();
+                return bitmap;
+            }
+            catch (Exception ex)
+            {
+                WriteBootstrapLog("Pack resource icon load failed for " + relativePath, ex);
                 return null;
             }
         }

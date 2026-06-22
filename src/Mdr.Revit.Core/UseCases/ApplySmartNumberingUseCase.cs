@@ -25,6 +25,26 @@ namespace Mdr.Revit.Core.UseCases
                 throw new ArgumentNullException(nameof(rule));
             }
 
+            if (IsArcaRule(rule))
+            {
+                if (string.IsNullOrWhiteSpace(rule.CategoryBuiltInName))
+                {
+                    throw new InvalidOperationException("ARCA smart numbering category is required.");
+                }
+
+                if (string.IsNullOrWhiteSpace(rule.SelectedBlock))
+                {
+                    throw new InvalidOperationException("ARCA smart numbering block is required.");
+                }
+
+                if (string.IsNullOrWhiteSpace(rule.SelectedLevel))
+                {
+                    throw new InvalidOperationException("ARCA smart numbering level is required.");
+                }
+
+                return _smartNumberingEngine.Apply(rule, previewOnly);
+            }
+
             if (string.IsNullOrWhiteSpace(rule.Formula))
             {
                 throw new InvalidOperationException("Smart numbering formula is required.");
@@ -37,6 +57,11 @@ namespace Mdr.Revit.Core.UseCases
 
             _formulaParser.Parse(rule.Formula, rule.SequenceWidth);
             return _smartNumberingEngine.Apply(rule, previewOnly);
+        }
+
+        private static bool IsArcaRule(SmartNumberingRule rule)
+        {
+            return string.Equals(rule.Mode, SmartNumberingModes.Arca, StringComparison.OrdinalIgnoreCase);
         }
     }
 }

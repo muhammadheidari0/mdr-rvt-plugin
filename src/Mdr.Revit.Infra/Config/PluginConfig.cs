@@ -23,7 +23,7 @@ namespace Mdr.Revit.Infra.Config
 
         public string ProjectCode { get; set; } = string.Empty;
 
-        public string PluginVersion { get; set; } = "0.3.6";
+        public string PluginVersion { get; set; } = "0.4.0";
 
         public int RequestTimeoutSeconds { get; set; } = 120;
 
@@ -40,6 +40,8 @@ namespace Mdr.Revit.Infra.Config
         public PublishPluginConfig Publish { get; set; } = new PublishPluginConfig();
 
         public GooglePluginConfig Google { get; set; } = new GooglePluginConfig();
+
+        public ExcelPluginConfig Excel { get; set; } = new ExcelPluginConfig();
 
         public UpdatesPluginConfig Updates { get; set; } = new UpdatesPluginConfig();
 
@@ -74,6 +76,27 @@ namespace Mdr.Revit.Infra.Config
             "MDR_UNIQUE_ID",
             "MDR_ELEMENT_ID",
         };
+    }
+
+    public sealed class ExcelPluginConfig
+    {
+        public string DefaultDirectory { get; set; } = "%LocalAppData%/MDR/RevitPlugin/excel";
+
+        public string DefaultWorksheetName { get; set; } = string.Empty;
+
+        public string AnchorColumn { get; set; } = "MDR_UNIQUE_ID";
+
+        public List<string> ProtectedSystemColumns { get; } = new List<string>
+        {
+            "MDR_UNIQUE_ID",
+            "MDR_ELEMENT_ID",
+        };
+
+        public string ImportPasswordHash { get; set; } = string.Empty;
+
+        public string ImportPasswordSalt { get; set; } = string.Empty;
+
+        public int ImportPasswordIterations { get; set; } = 120000;
     }
 
     public sealed class UpdatesPluginConfig

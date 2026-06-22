@@ -8,6 +8,7 @@ using Mdr.Revit.Addin.Commands;
 using Mdr.Revit.Addin.Ribbon;
 using Mdr.Revit.Core.Models;
 using Mdr.Revit.Infra.Config;
+using Mdr.Revit.Infra.Security;
 
 namespace Mdr.Revit.Addin
 {
@@ -20,8 +21,10 @@ namespace Mdr.Revit.Addin
         private readonly PushSchedulesCommand _pushSchedulesCommand;
         private readonly SyncSiteLogsCommand _syncSiteLogsCommand;
         private readonly GoogleSyncCommand _googleSyncCommand;
+        private readonly ExcelSyncCommand _excelSyncCommand;
         private readonly SmartNumberingCommand _smartNumberingCommand;
         private readonly CheckUpdatesCommand _checkUpdatesCommand;
+        private readonly ExcelImportPasswordService _excelImportPasswordService;
 
         public App()
             : this(
@@ -32,8 +35,10 @@ namespace Mdr.Revit.Addin
                 new PushSchedulesCommand(),
                 new SyncSiteLogsCommand(),
                 new GoogleSyncCommand(),
+                new ExcelSyncCommand(),
                 new SmartNumberingCommand(),
-                new CheckUpdatesCommand())
+                new CheckUpdatesCommand(),
+                new ExcelImportPasswordService())
         {
         }
 
@@ -46,8 +51,10 @@ namespace Mdr.Revit.Addin
                 new PushSchedulesCommand(uiDocument),
                 new SyncSiteLogsCommand(),
                 new GoogleSyncCommand(uiDocument),
+                new ExcelSyncCommand(uiDocument),
                 new SmartNumberingCommand(uiDocument),
-                new CheckUpdatesCommand())
+                new CheckUpdatesCommand(),
+                new ExcelImportPasswordService())
         {
         }
 
@@ -59,8 +66,10 @@ namespace Mdr.Revit.Addin
             PushSchedulesCommand pushSchedulesCommand,
             SyncSiteLogsCommand syncSiteLogsCommand,
             GoogleSyncCommand googleSyncCommand,
+            ExcelSyncCommand excelSyncCommand,
             SmartNumberingCommand smartNumberingCommand,
-            CheckUpdatesCommand checkUpdatesCommand)
+            CheckUpdatesCommand checkUpdatesCommand,
+            ExcelImportPasswordService excelImportPasswordService)
         {
             _ribbonBuilder = ribbonBuilder ?? throw new ArgumentNullException(nameof(ribbonBuilder));
             _settingsCommand = settingsCommand ?? throw new ArgumentNullException(nameof(settingsCommand));
@@ -69,8 +78,10 @@ namespace Mdr.Revit.Addin
             _pushSchedulesCommand = pushSchedulesCommand ?? throw new ArgumentNullException(nameof(pushSchedulesCommand));
             _syncSiteLogsCommand = syncSiteLogsCommand ?? throw new ArgumentNullException(nameof(syncSiteLogsCommand));
             _googleSyncCommand = googleSyncCommand ?? throw new ArgumentNullException(nameof(googleSyncCommand));
+            _excelSyncCommand = excelSyncCommand ?? throw new ArgumentNullException(nameof(excelSyncCommand));
             _smartNumberingCommand = smartNumberingCommand ?? throw new ArgumentNullException(nameof(smartNumberingCommand));
             _checkUpdatesCommand = checkUpdatesCommand ?? throw new ArgumentNullException(nameof(checkUpdatesCommand));
+            _excelImportPasswordService = excelImportPasswordService ?? throw new ArgumentNullException(nameof(excelImportPasswordService));
         }
 
         public string Name => "MDR Revit Plugin";
@@ -134,7 +145,7 @@ namespace Mdr.Revit.Addin
                 ModelGuid = request.ModelGuid ?? string.Empty,
                 ModelTitle = request.ModelTitle ?? string.Empty,
                 RevitVersion = string.IsNullOrWhiteSpace(request.RevitVersion) ? "2026" : request.RevitVersion,
-                PluginVersion = string.IsNullOrWhiteSpace(config.PluginVersion) ? "0.3.6" : config.PluginVersion,
+                PluginVersion = string.IsNullOrWhiteSpace(config.PluginVersion) ? "0.4.0" : config.PluginVersion,
                 DefaultStatusCode = string.IsNullOrWhiteSpace(config.DefaultPublishStatusCode)
                     ? "IFA"
                     : config.DefaultPublishStatusCode,
@@ -206,7 +217,7 @@ namespace Mdr.Revit.Addin
                 ClientModelGuid = request.ClientModelGuid ?? string.Empty,
                 UpdatedAfterUtc = request.UpdatedAfterUtc,
                 Limit = request.Limit <= 0 ? 500 : request.Limit,
-                PluginVersion = string.IsNullOrWhiteSpace(config.PluginVersion) ? "0.3.6" : config.PluginVersion,
+                PluginVersion = string.IsNullOrWhiteSpace(config.PluginVersion) ? "0.4.0" : config.PluginVersion,
                 RequestTimeoutSeconds = config.RequestTimeoutSeconds,
                 AllowInsecureTls = config.AllowInsecureTls,
             };
@@ -270,6 +281,72 @@ namespace Mdr.Revit.Addin
             return _googleSyncCommand.GetScheduleColumnMappings(scheduleName);
         }
 
+        public Task<ExcelScheduleSyncResult> SyncExcelAsync(
+            ExcelSyncFromAppRequest request,
+            CancellationToken cancellationToken)
+        {
+            if (request == null)
+            {
+                throw new ArgumentNullException(nameof(request));
+            }
+
+            PluginConfig config = LoadConfig();
+            bool isApplyImport =
+                string.Equals(request.Direction, GoogleSyncDirections.Import, StringComparison.OrdinalIgnoreCase) &&
+                !request.PreviewOnly;
+            if (isApplyImport)
+            {
+                AdminPinVerificationResult verification =
+                    _excelImportPasswordService.VerifyPassword(config, request.ImportPassword ?? string.Empty);
+                if (!verification.IsSuccess)
+                {
+                    throw new InvalidOperationException(
+                        string.IsNullOrWhiteSpace(verification.Message)
+                            ? "Excel import password is invalid."
+                            : verification.Message);
+                }
+            }
+
+            ExcelSyncCommandRequest commandRequest = new ExcelSyncCommandRequest
+            {
+                Direction = string.IsNullOrWhiteSpace(request.Direction)
+                    ? GoogleSyncDirections.Export
+                    : request.Direction,
+                ScheduleName = request.ScheduleName ?? string.Empty,
+                FilePath = request.FilePath ?? string.Empty,
+                WorksheetName = ResolveExcelWorksheetName(
+                    request.WorksheetName,
+                    request.ScheduleName ?? string.Empty,
+                    config.Excel.DefaultWorksheetName),
+                AnchorColumn = string.IsNullOrWhiteSpace(request.AnchorColumn)
+                    ? config.Excel.AnchorColumn
+                    : request.AnchorColumn,
+                PreviewOnly = request.PreviewOnly,
+            };
+
+            foreach (GoogleSheetColumnMapping mapping in request.ColumnMappings)
+            {
+                commandRequest.ColumnMappings.Add(mapping);
+            }
+
+            foreach (string column in config.Excel.ProtectedSystemColumns)
+            {
+                commandRequest.ProtectedColumns.Add(column);
+            }
+
+            return _excelSyncCommand.ExecuteAsync(commandRequest, cancellationToken);
+        }
+
+        public IReadOnlyList<string> GetAvailableSchedulesForExcelSync()
+        {
+            return _excelSyncCommand.GetAvailableSchedules();
+        }
+
+        public IReadOnlyList<GoogleSheetColumnMapping> GetScheduleColumnMappingsForExcelSync(string scheduleName)
+        {
+            return _excelSyncCommand.GetScheduleColumnMappings(scheduleName);
+        }
+
         public SmartNumberingResult ApplySmartNumbering(SmartNumberingFromAppRequest request)
         {
             if (request == null)
@@ -291,6 +368,11 @@ namespace Mdr.Revit.Addin
             });
         }
 
+        public SmartNumberingMetadata GetSmartNumberingMetadata(SmartNumberingRule rule)
+        {
+            return _smartNumberingCommand.GetMetadata(rule ?? new SmartNumberingRule());
+        }
+
         public Task<UpdateCheckResult> CheckUpdatesAsync(
             CheckUpdatesFromAppRequest request,
             CancellationToken cancellationToken)
@@ -303,7 +385,7 @@ namespace Mdr.Revit.Addin
             PluginConfig config = LoadConfig();
             CheckUpdatesCommandRequest commandRequest = new CheckUpdatesCommandRequest
             {
-                CurrentVersion = string.IsNullOrWhiteSpace(config.PluginVersion) ? "0.3.6" : config.PluginVersion,
+                CurrentVersion = string.IsNullOrWhiteSpace(config.PluginVersion) ? "0.4.0" : config.PluginVersion,
                 Channel = string.IsNullOrWhiteSpace(request.Channel) ? config.Updates.Channel : request.Channel,
                 GithubRepo = string.IsNullOrWhiteSpace(request.GithubRepo) ? config.Updates.GithubRepo : request.GithubRepo,
                 DownloadDirectory = ResolveUpdatesDirectory(request.DownloadDirectory),
@@ -387,6 +469,29 @@ namespace Mdr.Revit.Addin
                 "RevitPlugin",
                 "google",
                 "token.dat");
+        }
+
+        private static string ResolveExcelWorksheetName(
+            string requestedWorksheetName,
+            string scheduleName,
+            string configuredWorksheetName)
+        {
+            if (!string.IsNullOrWhiteSpace(requestedWorksheetName))
+            {
+                return requestedWorksheetName.Trim();
+            }
+
+            if (!string.IsNullOrWhiteSpace(configuredWorksheetName))
+            {
+                return configuredWorksheetName.Trim();
+            }
+
+            if (!string.IsNullOrWhiteSpace(scheduleName))
+            {
+                return scheduleName.Trim();
+            }
+
+            return "Sheet1";
         }
 
         private static string ResolveUpdatesDirectory(string requestedDirectory)
@@ -507,6 +612,25 @@ namespace Mdr.Revit.Addin
         public bool AuthorizeInteractively { get; set; }
 
         public bool PreviewOnly { get; set; }
+
+        public List<GoogleSheetColumnMapping> ColumnMappings { get; } = new List<GoogleSheetColumnMapping>();
+    }
+
+    public sealed class ExcelSyncFromAppRequest
+    {
+        public string Direction { get; set; } = GoogleSyncDirections.Export;
+
+        public string ScheduleName { get; set; } = string.Empty;
+
+        public string FilePath { get; set; } = string.Empty;
+
+        public string WorksheetName { get; set; } = string.Empty;
+
+        public string AnchorColumn { get; set; } = "MDR_UNIQUE_ID";
+
+        public bool PreviewOnly { get; set; }
+
+        public string ImportPassword { get; set; } = string.Empty;
 
         public List<GoogleSheetColumnMapping> ColumnMappings { get; } = new List<GoogleSheetColumnMapping>();
     }

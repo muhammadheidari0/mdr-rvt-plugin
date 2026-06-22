@@ -27,6 +27,26 @@ namespace Mdr.Revit.Core.Tests
             Assert.Equal(3, result.Preview.Count);
         }
 
+        [Fact]
+        public void Execute_ArcaRule_DelegatesWithoutFormula()
+        {
+            FakeEngine engine = new FakeEngine();
+            ApplySmartNumberingUseCase useCase = new ApplySmartNumberingUseCase(engine, new SmartNumberingFormulaParser());
+            SmartNumberingRule rule = new SmartNumberingRule
+            {
+                RuleId = "arca-serial",
+                Mode = SmartNumberingModes.Arca,
+                CategoryBuiltInName = "OST_Walls",
+                SelectedBlock = "A",
+                SelectedLevel = "01",
+            };
+
+            SmartNumberingResult result = useCase.Execute(rule, previewOnly: true);
+
+            Assert.Equal(1, engine.CallCount);
+            Assert.Equal(3, result.Preview.Count);
+        }
+
         private sealed class FakeEngine : ISmartNumberingEngine
         {
             public int CallCount { get; private set; }

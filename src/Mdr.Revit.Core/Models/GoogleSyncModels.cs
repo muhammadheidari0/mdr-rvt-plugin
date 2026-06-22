@@ -27,6 +27,8 @@ namespace Mdr.Revit.Core.Models
 
         public string AnchorColumn { get; set; } = "MDR_UNIQUE_ID";
 
+        public bool InstanceOnlyWrites { get; set; }
+
         public List<GoogleSheetColumnMapping> ColumnMappings { get; } = new List<GoogleSheetColumnMapping>();
 
         public List<string> ProtectedColumns { get; } = new List<string>();

@@ -69,6 +69,16 @@ namespace Mdr.Revit.RevitAdapter.Extractors
             return new SmartNumberingEngine(uiDocument);
         }
 
+        public static ISmartNumberingMetadataProvider CreateSmartNumberingMetadataProvider(UIDocument uiDocument)
+        {
+            if (uiDocument == null)
+            {
+                throw new ArgumentNullException(nameof(uiDocument));
+            }
+
+            return new SmartNumberingMetadataProvider(uiDocument);
+        }
+
         private static IReadOnlyList<PublishSheetItem> ExtractSelectedSheets(UIDocument uiDocument)
         {
             Document document = uiDocument.Document;

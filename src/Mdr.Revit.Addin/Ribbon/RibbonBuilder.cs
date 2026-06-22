@@ -13,6 +13,7 @@ namespace Mdr.Revit.Addin.Ribbon
                 new RibbonCommandDescriptor("mdr.pushSchedules", "Push Schedules", "Extract mapped schedules and ingest to MDR."),
                 new RibbonCommandDescriptor("mdr.syncSiteLogs", "Sync Contractor Reports", "Pull and apply verified site-log updates."),
                 new RibbonCommandDescriptor("mdr.googleSync", "Google Sheets Sync", "Sync Revit schedules with Google Sheets."),
+                new RibbonCommandDescriptor("mdr.excelSync", "Excel Sync", "Sync Revit schedules with Excel workbooks."),
                 new RibbonCommandDescriptor("mdr.smartNumbering", "Smart Numbering", "Generate rule-based element numbering."),
                 new RibbonCommandDescriptor("mdr.checkUpdates", "Check Updates", "Check and prepare plugin updates."),
                 new RibbonCommandDescriptor("mdr.settings", "Settings", "Edit plugin runtime configuration."),

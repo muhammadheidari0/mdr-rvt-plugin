@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using Autodesk.Revit.DB;
 using Autodesk.Revit.UI;
 using Mdr.Revit.Core.Contracts;
@@ -18,14 +19,28 @@ namespace Mdr.Revit.RevitAdapter.Writers
         private readonly ParameterAccessor _parameterAccessor;
         private readonly LocalSequenceScanner _sequenceScanner;
         private readonly SmartNumberingFormulaParser _formulaParser;
+        private readonly ArcaSerialNumberingPlanner _arcaPlanner;
+        private readonly ArcaLevelCodeResolver _levelCodeResolver;
 
         public SmartNumberingEngine()
-            : this(null, new ParameterAccessor(), new LocalSequenceScanner(), new SmartNumberingFormulaParser())
+            : this(
+                null,
+                new ParameterAccessor(),
+                new LocalSequenceScanner(),
+                new SmartNumberingFormulaParser(),
+                new ArcaSerialNumberingPlanner(),
+                new ArcaLevelCodeResolver())
         {
         }
 
         public SmartNumberingEngine(UIDocument uiDocument)
-            : this(uiDocument, new ParameterAccessor(), new LocalSequenceScanner(), new SmartNumberingFormulaParser())
+            : this(
+                uiDocument,
+                new ParameterAccessor(),
+                new LocalSequenceScanner(),
+                new SmartNumberingFormulaParser(),
+                new ArcaSerialNumberingPlanner(),
+                new ArcaLevelCodeResolver())
         {
         }
 
@@ -33,12 +48,16 @@ namespace Mdr.Revit.RevitAdapter.Writers
             UIDocument? uiDocument,
             ParameterAccessor parameterAccessor,
             LocalSequenceScanner sequenceScanner,
-            SmartNumberingFormulaParser formulaParser)
+            SmartNumberingFormulaParser formulaParser,
+            ArcaSerialNumberingPlanner arcaPlanner,
+            ArcaLevelCodeResolver levelCodeResolver)
         {
             _uiDocument = uiDocument;
             _parameterAccessor = parameterAccessor ?? throw new ArgumentNullException(nameof(parameterAccessor));
             _sequenceScanner = sequenceScanner ?? throw new ArgumentNullException(nameof(sequenceScanner));
             _formulaParser = formulaParser ?? throw new ArgumentNullException(nameof(formulaParser));
+            _arcaPlanner = arcaPlanner ?? throw new ArgumentNullException(nameof(arcaPlanner));
+            _levelCodeResolver = levelCodeResolver ?? throw new ArgumentNullException(nameof(levelCodeResolver));
         }
 
         public SmartNumberingResult Apply(SmartNumberingRule rule, bool previewOnly)
@@ -57,6 +76,11 @@ namespace Mdr.Revit.RevitAdapter.Writers
             {
                 AddError(result, string.Empty, string.Empty, "revit_context_missing", "Revit document context is unavailable.");
                 return result;
+            }
+
+            if (IsArcaRule(rule))
+            {
+                return ApplyArca(rule, previewOnly, result);
             }
 
             if (string.IsNullOrWhiteSpace(rule.Formula))
@@ -279,6 +303,178 @@ namespace Mdr.Revit.RevitAdapter.Writers
             return result;
         }
 
+        private SmartNumberingResult ApplyArca(
+            SmartNumberingRule rule,
+            bool previewOnly,
+            SmartNumberingResult result)
+        {
+            Document document = _uiDocument!.Document;
+            if (!TryResolveBuiltInCategory(rule.CategoryBuiltInName, out BuiltInCategory category))
+            {
+                AddError(result, string.Empty, string.Empty, "category_invalid", "Invalid ARCA category: " + rule.CategoryBuiltInName);
+                return result;
+            }
+
+            string selectedBlock = (rule.SelectedBlock ?? string.Empty).Trim();
+            string selectedLevel = ArcaSerialNumberingPlanner.NormalizeLevelCode(rule.SelectedLevel);
+            if (string.IsNullOrWhiteSpace(selectedBlock))
+            {
+                AddError(result, string.Empty, string.Empty, "block_required", "Select a Block before running ARCA numbering.");
+                return result;
+            }
+
+            if (string.IsNullOrWhiteSpace(selectedLevel))
+            {
+                AddError(result, string.Empty, string.Empty, "level_required", "Select a Level before running ARCA numbering.");
+                return result;
+            }
+
+            List<Element> categoryElements = new FilteredElementCollector(document)
+                .OfCategory(category)
+                .WhereElementIsNotElementType()
+                .Cast<Element>()
+                .OrderBy(x => x.Id.Value)
+                .ToList();
+            Dictionary<string, Element> elementsByKey = categoryElements
+                .GroupBy(GetElementKey, StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(x => x.Key, x => x.First(), StringComparer.OrdinalIgnoreCase);
+            IReadOnlyList<ScopeBoxInfo> scopeBoxes = CollectScopeBoxes(document);
+
+            ArcaSerialNumberingPlanRequest planRequest = new ArcaSerialNumberingPlanRequest
+            {
+                SelectedBlock = selectedBlock,
+                SelectedLevelCode = selectedLevel,
+            };
+            for (int i = 0; i < categoryElements.Count; i++)
+            {
+                Element element = categoryElements[i];
+                planRequest.Elements.Add(new ArcaSerialNumberingElementSnapshot
+                {
+                    ElementKey = GetElementKey(element),
+                    ElementId = (int)element.Id.Value,
+                    Block = _parameterAccessor.ReadValue(element, "Block"),
+                    LevelCode = _levelCodeResolver.GetEffectiveLevelCode(element),
+                    TypeMark = ReadTypeMark(element),
+                    Series = _parameterAccessor.ReadValue(element, "Series"),
+                    SerialNo = _parameterAccessor.ReadValue(element, "Serial No"),
+                    ScopeSort = ResolveScopeSort(element, scopeBoxes),
+                });
+            }
+
+            ArcaSerialNumberingPlan plan = _arcaPlanner.Plan(planRequest);
+            for (int i = 0; i < plan.Preview.Count; i++)
+            {
+                result.Preview.Add(plan.Preview[i]);
+            }
+
+            result.PlannedCount = plan.Writes.Count;
+            result.SkippedCount = plan.SkippedCount;
+            if (previewOnly)
+            {
+                return result;
+            }
+
+            List<ParameterAssignment> assignments = new List<ParameterAssignment>(plan.Writes.Count);
+            for (int i = 0; i < plan.Writes.Count; i++)
+            {
+                ArcaSerialNumberingWrite write = plan.Writes[i];
+                if (!elementsByKey.TryGetValue(write.ElementKey, out Element? element))
+                {
+                    write.Preview.Status = SmartNumberingPreviewStates.Error;
+                    write.Preview.ErrorCode = "element_not_found";
+                    write.Preview.ErrorMessage = "Element was not found in Revit document.";
+                    AddError(result, write.ElementKey, write.Target, "element_not_found", write.Preview.ErrorMessage);
+                    result.FailedCount++;
+                    continue;
+                }
+
+                assignments.Add(new ParameterAssignment(element, write.Target, write.Value, write.Preview));
+            }
+
+            if (result.Errors.Count > 0)
+            {
+                AbortParameterAssignmentsForValidation(result, assignments, "apply_aborted_validation", "Apply aborted because preview contains errors.");
+                return result;
+            }
+
+            if (!ValidateParameterAssignments(assignments, result))
+            {
+                AbortParameterAssignmentsForValidation(result, assignments, "apply_aborted_validation", "Apply aborted because one or more ARCA targets are invalid.");
+                return result;
+            }
+
+            if (assignments.Count == 0)
+            {
+                return result;
+            }
+
+            bool writeFailed = false;
+            string writeFailureMessage = "Unexpected error while writing ARCA numbering values.";
+            try
+            {
+                using (TransactionGroup group = new TransactionGroup(document, "MDR ARCA Smart Numbering"))
+                {
+                    group.Start();
+                    using (Transaction transaction = new Transaction(document, "MDR ARCA Smart Numbering Apply"))
+                    {
+                        transaction.Start();
+                        for (int i = 0; i < assignments.Count; i++)
+                        {
+                            ParameterAssignment assignment = assignments[i];
+                            if (!_parameterAccessor.TryWriteValue(
+                                assignment.Element,
+                                assignment.Target,
+                                assignment.Value,
+                                out string errorCode,
+                                out string errorMessage))
+                            {
+                                writeFailed = true;
+                                writeFailureMessage = string.IsNullOrWhiteSpace(errorMessage)
+                                    ? "Failed to write parameter " + assignment.Target
+                                    : errorMessage;
+                                assignment.Preview.Status = SmartNumberingPreviewStates.Error;
+                                assignment.Preview.ErrorCode = string.IsNullOrWhiteSpace(errorCode) ? "apply_failed" : errorCode;
+                                assignment.Preview.ErrorMessage = writeFailureMessage;
+                                AddError(result, assignment.Preview.ElementKey, assignment.Target, assignment.Preview.ErrorCode, writeFailureMessage);
+                                break;
+                            }
+
+                            assignment.Preview.Status = SmartNumberingPreviewStates.Applied;
+                            assignment.Preview.ErrorCode = string.Empty;
+                            assignment.Preview.ErrorMessage = string.Empty;
+                        }
+
+                        if (writeFailed)
+                        {
+                            transaction.RollBack();
+                            group.RollBack();
+                        }
+                        else
+                        {
+                            transaction.Commit();
+                            group.Assimilate();
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                writeFailed = true;
+                writeFailureMessage = ex.Message;
+                AddError(result, string.Empty, "Series, Serial No", "apply_failed", writeFailureMessage);
+            }
+
+            if (writeFailed)
+            {
+                result.FailedCount++;
+                AbortParameterAssignmentsForRollback(result, assignments, "transaction_rolled_back", writeFailureMessage);
+                return result;
+            }
+
+            result.AppliedCount = assignments.Count;
+            return result;
+        }
+
         private static IReadOnlyList<string> ResolveTargets(SmartNumberingRule rule)
         {
             if (rule.Targets.Count > 0)
@@ -287,6 +483,116 @@ namespace Mdr.Revit.RevitAdapter.Writers
             }
 
             return new[] { "Serial No" };
+        }
+
+        private static bool IsArcaRule(SmartNumberingRule rule)
+        {
+            return string.Equals(rule.Mode, SmartNumberingModes.Arca, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool TryResolveBuiltInCategory(string categoryName, out BuiltInCategory category)
+        {
+            string value = string.IsNullOrWhiteSpace(categoryName)
+                ? "OST_Walls"
+                : categoryName.Trim();
+            return Enum.TryParse(value, out category);
+        }
+
+        private string ReadTypeMark(Element element)
+        {
+            try
+            {
+                ElementId typeId = element.GetTypeId();
+                if (typeId != ElementId.InvalidElementId)
+                {
+                    Element? typeElement = element.Document.GetElement(typeId);
+                    if (typeElement != null)
+                    {
+                        string typeValue = _parameterAccessor.ReadValue(typeElement, "Type Mark");
+                        if (!string.IsNullOrWhiteSpace(typeValue))
+                        {
+                            return typeValue.Trim();
+                        }
+                    }
+                }
+            }
+            catch
+            {
+            }
+
+            return _parameterAccessor.ReadValue(element, "Type Mark");
+        }
+
+        private static IReadOnlyList<ScopeBoxInfo> CollectScopeBoxes(Document document)
+        {
+            List<ScopeBoxInfo> scopeBoxes = new List<ScopeBoxInfo>();
+            try
+            {
+                FilteredElementCollector collector = new FilteredElementCollector(document)
+                    .OfCategory(BuiltInCategory.OST_VolumeOfInterest)
+                    .WhereElementIsNotElementType();
+                foreach (Element scopeBox in collector)
+                {
+                    Match match = Regex.Match(scopeBox.Name ?? string.Empty, "SC(\\d+)", RegexOptions.IgnoreCase);
+                    if (!match.Success || !int.TryParse(match.Groups[1].Value, out int scopeNumber))
+                    {
+                        continue;
+                    }
+
+                    BoundingBoxXYZ? boundingBox = scopeBox.get_BoundingBox(null);
+                    if (boundingBox == null)
+                    {
+                        continue;
+                    }
+
+                    scopeBoxes.Add(new ScopeBoxInfo(scopeNumber, boundingBox));
+                }
+            }
+            catch
+            {
+                return scopeBoxes;
+            }
+
+            return scopeBoxes.OrderBy(x => x.ScopeNumber).ToList();
+        }
+
+        private static int ResolveScopeSort(Element element, IReadOnlyList<ScopeBoxInfo> scopeBoxes)
+        {
+            BoundingBoxXYZ? elementBox = null;
+            try
+            {
+                elementBox = element.get_BoundingBox(null);
+            }
+            catch
+            {
+                return 9999;
+            }
+
+            if (elementBox == null)
+            {
+                return 9999;
+            }
+
+            for (int i = 0; i < scopeBoxes.Count; i++)
+            {
+                ScopeBoxInfo scopeBox = scopeBoxes[i];
+                if (Overlaps(elementBox, scopeBox.BoundingBox))
+                {
+                    return scopeBox.ScopeNumber;
+                }
+            }
+
+            return 9999;
+        }
+
+        private static bool Overlaps(BoundingBoxXYZ first, BoundingBoxXYZ second)
+        {
+            return first.Min.X <= second.Max.X &&
+                first.Max.X >= second.Min.X &&
+                first.Min.Y <= second.Max.Y &&
+                first.Max.Y >= second.Min.Y &&
+                first.Min.Z <= second.Max.Z &&
+                first.Max.Z >= second.Min.Z;
         }
 
         private string BuildPrefix(
@@ -450,6 +756,44 @@ namespace Mdr.Revit.RevitAdapter.Writers
             return !hasValidationErrors;
         }
 
+        private bool ValidateParameterAssignments(
+            IReadOnlyList<ParameterAssignment> assignments,
+            SmartNumberingResult result)
+        {
+            bool hasValidationErrors = false;
+            for (int i = 0; i < assignments.Count; i++)
+            {
+                ParameterAssignment assignment = assignments[i];
+                if (_parameterAccessor.CanWriteValue(
+                    assignment.Element,
+                    assignment.Target,
+                    assignment.Value,
+                    out string errorCode,
+                    out string errorMessage))
+                {
+                    continue;
+                }
+
+                hasValidationErrors = true;
+                assignment.Preview.Status = SmartNumberingPreviewStates.Error;
+                assignment.Preview.ErrorCode = string.IsNullOrWhiteSpace(errorCode)
+                    ? "parameter_read_only"
+                    : errorCode;
+                assignment.Preview.ErrorMessage = string.IsNullOrWhiteSpace(errorMessage)
+                    ? "Target parameter is not writable: " + assignment.Target
+                    : errorMessage;
+                AddError(
+                    result,
+                    assignment.Preview.ElementKey,
+                    assignment.Target,
+                    assignment.Preview.ErrorCode,
+                    assignment.Preview.ErrorMessage);
+                result.FailedCount++;
+            }
+
+            return !hasValidationErrors;
+        }
+
         private static void AbortForValidation(
             SmartNumberingResult result,
             IReadOnlyList<PlannedAssignment> assignments,
@@ -479,8 +823,57 @@ namespace Mdr.Revit.RevitAdapter.Writers
             result.AppliedCount = 0;
         }
 
+        private static void AbortParameterAssignmentsForValidation(
+            SmartNumberingResult result,
+            IReadOnlyList<ParameterAssignment> assignments,
+            string errorCode,
+            string message)
+        {
+            result.WasRolledBack = true;
+            result.FatalErrorCode = errorCode;
+            result.FatalErrorMessage = message;
+            AddError(result, string.Empty, string.Empty, errorCode, message);
+            result.SkippedCount += assignments.Count;
+            MarkRemainingParameterAssignmentsAsSkipped(assignments, message);
+        }
+
+        private static void AbortParameterAssignmentsForRollback(
+            SmartNumberingResult result,
+            IReadOnlyList<ParameterAssignment> assignments,
+            string errorCode,
+            string message)
+        {
+            result.WasRolledBack = true;
+            result.FatalErrorCode = errorCode;
+            result.FatalErrorMessage = message;
+            AddError(result, string.Empty, string.Empty, errorCode, message);
+            result.SkippedCount += assignments.Count;
+            MarkRemainingParameterAssignmentsAsSkipped(assignments, "Changes were rolled back.");
+            result.AppliedCount = 0;
+        }
+
         private static void MarkRemainingAsSkipped(
             IReadOnlyList<PlannedAssignment> assignments,
+            string message)
+        {
+            for (int i = 0; i < assignments.Count; i++)
+            {
+                SmartNumberingPreviewItem preview = assignments[i].Preview;
+                if (preview.Status.Equals(SmartNumberingPreviewStates.Error, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                preview.Status = SmartNumberingPreviewStates.Skipped;
+                if (string.IsNullOrWhiteSpace(preview.ErrorMessage))
+                {
+                    preview.ErrorMessage = message;
+                }
+            }
+        }
+
+        private static void MarkRemainingParameterAssignmentsAsSkipped(
+            IReadOnlyList<ParameterAssignment> assignments,
             string message)
         {
             for (int i = 0; i < assignments.Count; i++)
@@ -536,6 +929,38 @@ namespace Mdr.Revit.RevitAdapter.Writers
             public string Value { get; }
 
             public SmartNumberingPreviewItem Preview { get; }
+        }
+
+        private sealed class ParameterAssignment
+        {
+            public ParameterAssignment(Element element, string target, string value, SmartNumberingPreviewItem preview)
+            {
+                Element = element ?? throw new ArgumentNullException(nameof(element));
+                Target = target ?? string.Empty;
+                Value = value ?? string.Empty;
+                Preview = preview ?? throw new ArgumentNullException(nameof(preview));
+            }
+
+            public Element Element { get; }
+
+            public string Target { get; }
+
+            public string Value { get; }
+
+            public SmartNumberingPreviewItem Preview { get; }
+        }
+
+        private sealed class ScopeBoxInfo
+        {
+            public ScopeBoxInfo(int scopeNumber, BoundingBoxXYZ boundingBox)
+            {
+                ScopeNumber = scopeNumber;
+                BoundingBox = boundingBox ?? throw new ArgumentNullException(nameof(boundingBox));
+            }
+
+            public int ScopeNumber { get; }
+
+            public BoundingBoxXYZ BoundingBox { get; }
         }
     }
 }

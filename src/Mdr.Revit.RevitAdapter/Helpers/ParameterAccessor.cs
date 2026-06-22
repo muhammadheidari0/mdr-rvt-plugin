@@ -4,11 +4,31 @@ using Autodesk.Revit.DB;
 
 namespace Mdr.Revit.RevitAdapter.Helpers
 {
+    public enum ParameterWriteScope
+    {
+        InstanceThenType = 0,
+        InstanceOnly = 1,
+    }
+
     public sealed class ParameterAccessor
     {
         public string ReadValue(Element element, string parameterName)
         {
-            Parameter? parameter = ResolveParameter(element, parameterName, requireWritable: false);
+            return ReadValue(element, parameterName, includeType: true);
+        }
+
+        public string ReadInstanceValue(Element element, string parameterName)
+        {
+            return ReadValue(element, parameterName, includeType: false);
+        }
+
+        private string ReadValue(Element element, string parameterName, bool includeType)
+        {
+            Parameter? parameter = ResolveParameter(
+                element,
+                parameterName,
+                requireWritable: false,
+                includeType: includeType);
             if (parameter == null)
             {
                 return string.Empty;
@@ -51,14 +71,55 @@ namespace Mdr.Revit.RevitAdapter.Helpers
             out string errorCode,
             out string errorMessage)
         {
+            return CanWriteValue(
+                element,
+                parameterName,
+                candidateValue,
+                ParameterWriteScope.InstanceThenType,
+                out errorCode,
+                out errorMessage);
+        }
+
+        public bool CanWriteInstanceValue(
+            Element element,
+            string parameterName,
+            string candidateValue,
+            out string errorCode,
+            out string errorMessage)
+        {
+            return CanWriteValue(
+                element,
+                parameterName,
+                candidateValue,
+                ParameterWriteScope.InstanceOnly,
+                out errorCode,
+                out errorMessage);
+        }
+
+        public bool CanWriteValue(
+            Element element,
+            string parameterName,
+            string candidateValue,
+            ParameterWriteScope writeScope,
+            out string errorCode,
+            out string errorMessage)
+        {
             errorCode = string.Empty;
             errorMessage = string.Empty;
 
-            Parameter? parameter = ResolveParameter(element, parameterName, requireWritable: true);
+            Parameter? parameter = ResolveParameter(
+                element,
+                parameterName,
+                requireWritable: true,
+                includeType: writeScope != ParameterWriteScope.InstanceOnly);
             if (parameter == null)
             {
-                errorCode = "parameter_read_only";
-                errorMessage = "Writable parameter was not found: " + parameterName;
+                errorCode = writeScope == ParameterWriteScope.InstanceOnly
+                    ? "instance_parameter_not_writable"
+                    : "parameter_read_only";
+                errorMessage = writeScope == ParameterWriteScope.InstanceOnly
+                    ? "Writable instance parameter was not found: " + parameterName
+                    : "Writable parameter was not found: " + parameterName;
                 return false;
             }
 
@@ -72,14 +133,55 @@ namespace Mdr.Revit.RevitAdapter.Helpers
             out string errorCode,
             out string errorMessage)
         {
+            return TryWriteValue(
+                element,
+                parameterName,
+                value,
+                ParameterWriteScope.InstanceThenType,
+                out errorCode,
+                out errorMessage);
+        }
+
+        public bool TryWriteInstanceValue(
+            Element element,
+            string parameterName,
+            string value,
+            out string errorCode,
+            out string errorMessage)
+        {
+            return TryWriteValue(
+                element,
+                parameterName,
+                value,
+                ParameterWriteScope.InstanceOnly,
+                out errorCode,
+                out errorMessage);
+        }
+
+        public bool TryWriteValue(
+            Element element,
+            string parameterName,
+            string value,
+            ParameterWriteScope writeScope,
+            out string errorCode,
+            out string errorMessage)
+        {
             errorCode = string.Empty;
             errorMessage = string.Empty;
 
-            Parameter? parameter = ResolveParameter(element, parameterName, requireWritable: true);
+            Parameter? parameter = ResolveParameter(
+                element,
+                parameterName,
+                requireWritable: true,
+                includeType: writeScope != ParameterWriteScope.InstanceOnly);
             if (parameter == null)
             {
-                errorCode = "parameter_read_only";
-                errorMessage = "Writable parameter was not found: " + parameterName;
+                errorCode = writeScope == ParameterWriteScope.InstanceOnly
+                    ? "instance_parameter_not_writable"
+                    : "parameter_read_only";
+                errorMessage = writeScope == ParameterWriteScope.InstanceOnly
+                    ? "Writable instance parameter was not found: " + parameterName
+                    : "Writable parameter was not found: " + parameterName;
                 return false;
             }
 
@@ -191,7 +293,11 @@ namespace Mdr.Revit.RevitAdapter.Helpers
             return int.Parse(normalized, NumberStyles.Integer, CultureInfo.InvariantCulture);
         }
 
-        private static Parameter? ResolveParameter(Element element, string parameterName, bool requireWritable)
+        private static Parameter? ResolveParameter(
+            Element element,
+            string parameterName,
+            bool requireWritable,
+            bool includeType)
         {
             if (element == null || string.IsNullOrWhiteSpace(parameterName))
             {
@@ -203,6 +309,11 @@ namespace Mdr.Revit.RevitAdapter.Helpers
             if (instance != null && (!requireWritable || !instance.IsReadOnly))
             {
                 return instance;
+            }
+
+            if (!includeType)
+            {
+                return null;
             }
 
             ElementId typeId = element.GetTypeId();
