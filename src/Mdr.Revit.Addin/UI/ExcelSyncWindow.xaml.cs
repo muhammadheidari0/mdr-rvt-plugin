@@ -49,6 +49,7 @@ namespace Mdr.Revit.Addin.UI
             var config = _app.LoadConfig();
             ViewModel.SetDefaults(
                 config.Excel.DefaultDirectory,
+                config.Excel.DefaultWorkbookPath,
                 config.Excel.DefaultWorksheetName,
                 config.Excel.AnchorColumn);
             _protectedColumns = config.Excel.ProtectedSystemColumns.ToArray();

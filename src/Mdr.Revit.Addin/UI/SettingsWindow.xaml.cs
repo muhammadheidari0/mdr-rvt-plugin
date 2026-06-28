@@ -1,6 +1,7 @@
 using System;
 using System.Windows;
 using System.Windows.Controls;
+using Microsoft.Win32;
 using Mdr.Revit.Infra.Config;
 using Mdr.Revit.Infra.Security;
 
@@ -16,6 +17,7 @@ namespace Mdr.Revit.Addin.UI
             ApiBaseUrl = _config.ApiBaseUrl ?? string.Empty;
             NativeFormat = _config.Publish?.NativeFormat ?? "dwg";
             ExcelDefaultDirectory = _config.Excel?.DefaultDirectory ?? "%LocalAppData%/MDR/RevitPlugin/excel";
+            ExcelDefaultWorkbookPath = _config.Excel?.DefaultWorkbookPath ?? string.Empty;
             ExcelDefaultWorksheetName = _config.Excel?.DefaultWorksheetName ?? string.Empty;
         }
 
@@ -24,6 +26,8 @@ namespace Mdr.Revit.Addin.UI
         public string NativeFormat { get; private set; } = "dwg";
 
         public string ExcelDefaultDirectory { get; private set; } = "%LocalAppData%/MDR/RevitPlugin/excel";
+
+        public string ExcelDefaultWorkbookPath { get; private set; } = string.Empty;
 
         public string ExcelDefaultWorksheetName { get; private set; } = string.Empty;
 
@@ -37,9 +41,9 @@ namespace Mdr.Revit.Addin.UI
             {
                 Title = "Plugin Settings",
                 Width = 640,
-                Height = 420,
+                Height = 460,
                 MinWidth = 520,
-                MinHeight = 360,
+                MinHeight = 400,
                 ResizeMode = ResizeMode.CanMinimize,
                 WindowStartupLocation = WindowStartupLocation.CenterScreen,
             };
@@ -48,6 +52,7 @@ namespace Mdr.Revit.Addin.UI
             {
                 Margin = new Thickness(16),
             };
+            root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
             root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
             root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
             root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
@@ -125,6 +130,49 @@ namespace Mdr.Revit.Addin.UI
             root.Children.Add(excelDirRow);
             Grid.SetRow(excelDirRow, 3);
 
+            StackPanel excelWorkbookRow = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Margin = new Thickness(0, 0, 0, 8),
+            };
+            excelWorkbookRow.Children.Add(new TextBlock
+            {
+                Width = 140,
+                VerticalAlignment = VerticalAlignment.Center,
+                Text = "Excel Workbook",
+            });
+            TextBox excelWorkbookTextBox = new TextBox
+            {
+                Width = 340,
+                Margin = new Thickness(0, 0, 8, 0),
+                Text = ExcelDefaultWorkbookPath,
+            };
+            Button excelWorkbookBrowseButton = new Button
+            {
+                Width = 82,
+                Content = "Browse",
+            };
+            excelWorkbookBrowseButton.Click += (_, _) =>
+            {
+                SaveFileDialog dialog = new SaveFileDialog
+                {
+                    Filter = "Excel Workbook (*.xlsx)|*.xlsx",
+                    FileName = excelWorkbookTextBox.Text ?? string.Empty,
+                    AddExtension = true,
+                    DefaultExt = ".xlsx",
+                    OverwritePrompt = false,
+                };
+
+                if (dialog.ShowDialog() == true)
+                {
+                    excelWorkbookTextBox.Text = dialog.FileName;
+                }
+            };
+            excelWorkbookRow.Children.Add(excelWorkbookTextBox);
+            excelWorkbookRow.Children.Add(excelWorkbookBrowseButton);
+            root.Children.Add(excelWorkbookRow);
+            Grid.SetRow(excelWorkbookRow, 4);
+
             StackPanel excelSheetRow = new StackPanel
             {
                 Orientation = Orientation.Horizontal,
@@ -143,7 +191,7 @@ namespace Mdr.Revit.Addin.UI
             };
             excelSheetRow.Children.Add(excelSheetTextBox);
             root.Children.Add(excelSheetRow);
-            Grid.SetRow(excelSheetRow, 4);
+            Grid.SetRow(excelSheetRow, 5);
 
             StackPanel excelPasswordRow = new StackPanel
             {
@@ -154,21 +202,33 @@ namespace Mdr.Revit.Addin.UI
             {
                 Width = 140,
                 VerticalAlignment = VerticalAlignment.Center,
-                Text = "Excel Password",
+                Text = "Excel Import Password",
+            });
+            excelPasswordRow.Children.Add(new TextBlock
+            {
+                Width = 42,
+                VerticalAlignment = VerticalAlignment.Center,
+                Text = "New",
             });
             PasswordBox excelPasswordBox = new PasswordBox
             {
-                Width = 190,
+                Width = 150,
                 Margin = new Thickness(0, 0, 8, 0),
             };
+            excelPasswordRow.Children.Add(excelPasswordBox);
+            excelPasswordRow.Children.Add(new TextBlock
+            {
+                Width = 56,
+                VerticalAlignment = VerticalAlignment.Center,
+                Text = "Confirm",
+            });
             PasswordBox excelPasswordConfirmBox = new PasswordBox
             {
-                Width = 190,
+                Width = 150,
             };
-            excelPasswordRow.Children.Add(excelPasswordBox);
             excelPasswordRow.Children.Add(excelPasswordConfirmBox);
             root.Children.Add(excelPasswordRow);
-            Grid.SetRow(excelPasswordRow, 5);
+            Grid.SetRow(excelPasswordRow, 6);
 
             StackPanel buttons = new StackPanel
             {
@@ -191,13 +251,14 @@ namespace Mdr.Revit.Addin.UI
             buttons.Children.Add(saveButton);
             buttons.Children.Add(cancelButton);
             root.Children.Add(buttons);
-            Grid.SetRow(buttons, 6);
+            Grid.SetRow(buttons, 7);
 
             saveButton.Click += (_, _) =>
             {
                 string url = apiTextBox.Text?.Trim() ?? string.Empty;
                 string format = nativeTextBox.Text?.Trim() ?? string.Empty;
                 string excelDirectory = excelDirTextBox.Text?.Trim() ?? string.Empty;
+                string excelWorkbookPath = excelWorkbookTextBox.Text?.Trim() ?? string.Empty;
                 string excelWorksheet = excelSheetTextBox.Text?.Trim() ?? string.Empty;
                 string excelPassword = excelPasswordBox.Password ?? string.Empty;
                 string excelPasswordConfirm = excelPasswordConfirmBox.Password ?? string.Empty;
@@ -205,6 +266,7 @@ namespace Mdr.Revit.Addin.UI
                         url,
                         format,
                         excelDirectory,
+                        excelWorkbookPath,
                         excelWorksheet,
                         excelPassword,
                         excelPasswordConfirm,
@@ -221,6 +283,7 @@ namespace Mdr.Revit.Addin.UI
                 ApiBaseUrl = url;
                 NativeFormat = format.ToLowerInvariant();
                 ExcelDefaultDirectory = excelDirectory;
+                ExcelDefaultWorkbookPath = excelWorkbookPath;
                 ExcelDefaultWorksheetName = excelWorksheet;
                 ExcelImportPassword = excelPassword;
                 ExcelImportPasswordConfirm = excelPasswordConfirm;
@@ -237,6 +300,7 @@ namespace Mdr.Revit.Addin.UI
                 }
 
                 _config.Excel.DefaultDirectory = ExcelDefaultDirectory;
+                _config.Excel.DefaultWorkbookPath = ExcelDefaultWorkbookPath;
                 _config.Excel.DefaultWorksheetName = ExcelDefaultWorksheetName;
                 if (!string.IsNullOrWhiteSpace(ExcelImportPassword))
                 {
@@ -269,6 +333,7 @@ namespace Mdr.Revit.Addin.UI
                 string.Empty,
                 string.Empty,
                 string.Empty,
+                string.Empty,
                 out errorMessage);
         }
 
@@ -276,6 +341,7 @@ namespace Mdr.Revit.Addin.UI
             string apiBaseUrl,
             string nativeFormat,
             string excelDefaultDirectory,
+            string excelDefaultWorkbookPath,
             string excelDefaultWorksheetName,
             string excelImportPassword,
             string excelImportPasswordConfirm,
@@ -309,6 +375,14 @@ namespace Mdr.Revit.Addin.UI
             if (string.IsNullOrWhiteSpace(excelDefaultDirectory))
             {
                 errorMessage = "Excel default directory is required.";
+                return false;
+            }
+
+            string workbookPath = excelDefaultWorkbookPath ?? string.Empty;
+            if (!string.IsNullOrWhiteSpace(workbookPath) &&
+                !workbookPath.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase))
+            {
+                errorMessage = "Excel workbook path must point to a .xlsx file.";
                 return false;
             }
 

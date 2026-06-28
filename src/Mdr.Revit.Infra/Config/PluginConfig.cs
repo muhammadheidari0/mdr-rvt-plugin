@@ -23,7 +23,7 @@ namespace Mdr.Revit.Infra.Config
 
         public string ProjectCode { get; set; } = string.Empty;
 
-        public string PluginVersion { get; set; } = "0.4.0";
+        public string PluginVersion { get; set; } = "0.4.1";
 
         public int RequestTimeoutSeconds { get; set; } = 120;
 
@@ -81,6 +81,8 @@ namespace Mdr.Revit.Infra.Config
     public sealed class ExcelPluginConfig
     {
         public string DefaultDirectory { get; set; } = "%LocalAppData%/MDR/RevitPlugin/excel";
+
+        public string DefaultWorkbookPath { get; set; } = string.Empty;
 
         public string DefaultWorksheetName { get; set; } = string.Empty;
 

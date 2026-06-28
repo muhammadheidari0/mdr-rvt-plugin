@@ -30,6 +30,8 @@ namespace Mdr.Revit.Addin.UI
 
         public string ExcelDefaultDirectory { get; set; } = string.Empty;
 
+        public string ExcelDefaultWorkbookPath { get; set; } = string.Empty;
+
         public string ExcelDefaultWorksheetName { get; set; } = string.Empty;
 
         public string ExcelImportPassword { get; set; } = string.Empty;
@@ -135,10 +137,16 @@ namespace Mdr.Revit.Addin.UI
                 settingsResult.ExcelDefaultWorksheetName = config.Excel?.DefaultWorksheetName ?? string.Empty;
             }
 
+            if (settingsResult.ExcelDefaultWorkbookPath == null)
+            {
+                settingsResult.ExcelDefaultWorkbookPath = config.Excel?.DefaultWorkbookPath ?? string.Empty;
+            }
+
             if (!SettingsWindow.TryValidateValues(
                     settingsResult.ApiBaseUrl ?? string.Empty,
                     settingsResult.NativeFormat ?? string.Empty,
                     settingsResult.ExcelDefaultDirectory ?? string.Empty,
+                    settingsResult.ExcelDefaultWorkbookPath ?? string.Empty,
                     settingsResult.ExcelDefaultWorksheetName ?? string.Empty,
                     settingsResult.ExcelImportPassword ?? string.Empty,
                     settingsResult.ExcelImportPasswordConfirm ?? string.Empty,
@@ -161,6 +169,7 @@ namespace Mdr.Revit.Addin.UI
             }
 
             config.Excel.DefaultDirectory = settingsResult.ExcelDefaultDirectory ?? string.Empty;
+            config.Excel.DefaultWorkbookPath = settingsResult.ExcelDefaultWorkbookPath ?? string.Empty;
             config.Excel.DefaultWorksheetName = settingsResult.ExcelDefaultWorksheetName ?? string.Empty;
             if (!string.IsNullOrWhiteSpace(settingsResult.ExcelImportPassword))
             {
@@ -266,6 +275,7 @@ namespace Mdr.Revit.Addin.UI
                 ApiBaseUrl = dialog.ApiBaseUrl,
                 NativeFormat = dialog.NativeFormat,
                 ExcelDefaultDirectory = dialog.ExcelDefaultDirectory,
+                ExcelDefaultWorkbookPath = dialog.ExcelDefaultWorkbookPath,
                 ExcelDefaultWorksheetName = dialog.ExcelDefaultWorksheetName,
                 ExcelImportPassword = dialog.ExcelImportPassword,
                 ExcelImportPasswordConfirm = dialog.ExcelImportPasswordConfirm,

@@ -10,13 +10,28 @@ namespace Mdr.Revit.Addin.Tests
         public void SetScheduleNames_SelectsFirstScheduleAndBuildsDefaultFile()
         {
             ExcelSyncWindowViewModel vm = new ExcelSyncWindowViewModel();
-            vm.SetDefaults("C:\\Temp\\Excel", string.Empty, "MDR_UNIQUE_ID");
+            vm.SetDefaults("C:\\Temp\\Excel", string.Empty, string.Empty, "MDR_UNIQUE_ID");
 
             vm.SetScheduleNames(new[] { "Walls", "Doors" });
 
             Assert.Equal("Walls", vm.SelectedScheduleName);
             Assert.Equal("Walls", vm.WorksheetName);
             Assert.EndsWith("Walls.xlsx", vm.FilePath);
+        }
+
+        [Fact]
+        public void SetDefaults_UsesConfiguredWorkbookPathAsExcelConnection()
+        {
+            ExcelSyncWindowViewModel vm = new ExcelSyncWindowViewModel();
+
+            vm.SetDefaults(
+                "C:\\Temp\\Excel",
+                "C:\\Project\\Shared\\MTO.xlsx",
+                string.Empty,
+                "MDR_UNIQUE_ID");
+            vm.SetScheduleNames(new[] { "Walls" });
+
+            Assert.Equal("C:\\Project\\Shared\\MTO.xlsx", vm.FilePath);
         }
 
         [Fact]

@@ -86,7 +86,7 @@ function Resolve-PluginVersion {
 
     $templateConfig = Join-Path $RepoRoot "config\appsettings.template.json"
     if (-not (Test-Path $templateConfig)) {
-        return "0.4.0"
+        return "0.4.1"
     }
 
     try {
@@ -95,16 +95,16 @@ function Resolve-PluginVersion {
             return $config.pluginVersion.Trim()
         }
     } catch {
-        return "0.4.0"
+        return "0.4.1"
     }
 
-    return "0.4.0"
+    return "0.4.1"
 }
 
 function Convert-ToMsiVersion {
     param([string]$VersionText)
 
-    $core = if ([string]::IsNullOrWhiteSpace($VersionText)) { "0.4.0" } else { $VersionText.Trim() }
+    $core = if ([string]::IsNullOrWhiteSpace($VersionText)) { "0.4.1" } else { $VersionText.Trim() }
     $dashIndex = $core.IndexOf("-")
     if ($dashIndex -gt 0) {
         $core = $core.Substring(0, $dashIndex)
